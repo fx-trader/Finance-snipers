@@ -7,7 +7,7 @@ package main;
 $|=1;
 
 use Log::Log4perl;
-use List::Util qw(sum);
+use List::Util qw(sum0);
 
 use Finance::HostedTrader::ExpressionParser;
 use Finance::FXCM::Simple;
@@ -39,6 +39,10 @@ my $max_exposure = 70000;       # Maximum amount I'm willing to buy/sell in $sym
 my $exposure_increment = 5000;  # How much more do I want to buy each time
 my $check_interval = 30;        # How many seconds to wait for before checking again if it's time to buy
 
+$logger->debug("Sniper reporting for duty");
+$logger->debug("Symbol = $symbol");
+$logger->debug("Check Interval = $check_interval seconds");
+
 while (1) {
     last if ( -f "/tmp/sniper_disengage" );
 
@@ -47,7 +51,6 @@ while (1) {
     $logger->debug("--------------------");
 
     my $fxcm = Finance::FXCM::Simple->new($ENV{FXCM_USERNAME}, $ENV{FXCM_PASSWORD}, $ENV{FXCM_ACCOUNT_TYPE}, 'http://www.fxcorporate.com/Hosts.jsp');
-    $logger->debug("Balance = " . $fxcm->getBalance());
     my $bid = $fxcm->getBid($fxcm_symbol); # The price I can sell at
     my $ask = $fxcm->getAsk($fxcm_symbol); # The price I can buy at
     $logger->debug("BID = $bid");
@@ -55,18 +58,18 @@ while (1) {
     my $spread = sprintf("%.5f", $ask - $bid);
     $logger->debug("SPREAD = $spread");
 
-    my $data = getIndicatorValue($symbol, '4hour', "macd(close, 12, 26, 9) - macdsig(close, 12, 26, 9)");
-    $logger->debug("Skip") and next if ($data->[1] >= 0);
-
-    $data = getIndicatorValue($symbol, '5min', "rsi(close,14)");
-    $logger->debug("Skip") and next if ($data->[1] >= 35);
+    my $macd_data = getIndicatorValue($symbol, '4hour', "macd(close, 12, 26, 9) - macdsig(close, 12, 26, 9)");
+    my $rsi_data = getIndicatorValue($symbol, '5min', "rsi(close,14)");
 
     my $symbol_trades = $fxcm->getTradesForSymbol($fxcm_symbol);
-    my $symbol_exposure = sum map { $_->{direction} eq 'long' ? $_->{size} : $_->{size} * (-1) }  @$symbol_trades;
+    my $symbol_exposure = sum0 map { $_->{direction} eq 'long' ? $_->{size} : $_->{size} * (-1) }  @$symbol_trades;
     $logger->debug("$symbol exposure = $symbol_exposure");
 
     my @trades = sort { $b->{openDate} cmp $a->{openDate} } grep { $_->{direction} eq 'long' } @{ $symbol_trades || [] };
     $logger->debug("LAST TRADE = " . $trades[0]->{openPrice}) if ( $trades[0]);
+
+    $logger->debug("Skip") and next if ($macd_data->[1] >= 0);
+    $logger->debug("Skip") and next if ($rsi_data->[1] >= 35);
 
     my $latest_price = $fxcm->getAsk($fxcm_symbol);
     $logger->debug("Skip") and next if ( $trades[0] && ( $latest_price < $trades[0]->{openPrice} - 25 ) );
@@ -81,6 +84,10 @@ while (1) {
 
     $fxcm = undef; #This logouts from the FXCM session, and can take a few seconds to return
 }
+
+$logger->debug("Sniper disengaged");
+
+unlink("/tmp/sniper_disengage");
 
 sub getIndicatorValue {
     my $symbol = shift;
@@ -101,7 +108,5 @@ sub getIndicatorValue {
 
     return $data->[0];
 }
-
-unlink("/tmp/sniper_disengage");
 
 1;
