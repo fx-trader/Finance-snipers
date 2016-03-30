@@ -81,7 +81,7 @@ while (1) {
         $logger->debug("Trigger price = $trigger_price");
         my $latest_price = $fxcm->getAsk($fxcm_symbol);
         $logger->debug("Latest price = $latest_price");
-        $logger->debug("Skip") and next if ( ($latest_price < $trigger_price);
+        $logger->debug("Skip") and next if ($latest_price < $trigger_price);
     }
 
     $logger->debug("Skip") and next if ( $max_exposure < $symbol_exposure + $exposure_increment);
