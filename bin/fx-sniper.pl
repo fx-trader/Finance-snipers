@@ -68,8 +68,8 @@ while (1) {
     my @trades = sort { $b->{openDate} cmp $a->{openDate} } grep { $_->{direction} eq 'long' } @{ $symbol_trades || [] };
     $logger->debug("LAST TRADE = " . $trades[0]->{openPrice}) if ( $trades[0]);
 
-#    $logger->debug("Skip") and next if ($macd_data->[1] >= 0);
-    $logger->debug("Skip") and next if ($rsi_data->[1] >= 38);
+#    $logger->debug("Skip macd") and next if ($macd_data->[1] >= 0);
+    $logger->debug("Skip rsi") and next if ($rsi_data->[1] >= 38);
 
     $logger->debug("Max Exposure = $max_exposure");
     $logger->debug("Current Exposure = $symbol_exposure");
@@ -81,10 +81,10 @@ while (1) {
         $logger->debug("Trigger price = $trigger_price");
         my $latest_price = $fxcm->getAsk($fxcm_symbol);
         $logger->debug("Latest price = $latest_price");
-        $logger->debug("Skip") and next if ($latest_price < $trigger_price);
+        $logger->debug("Skip trigger price") and next if ($latest_price < $trigger_price);
     }
 
-    $logger->debug("Skip") and next if ( $max_exposure < $symbol_exposure + $exposure_increment);
+    $logger->debug("Skip exposure") and next if ( $max_exposure < $symbol_exposure + $exposure_increment);
 
     $logger->debug("Add position to $symbol ($exposure_increment)");
     $fxcm->openMarket($fxcm_symbol, ($exposure_increment > 0 ? "B" : "S"), abs($exposure_increment));
