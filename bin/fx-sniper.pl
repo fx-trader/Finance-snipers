@@ -71,12 +71,19 @@ while (1) {
 #    $logger->debug("Skip") and next if ($macd_data->[1] >= 0);
     $logger->debug("Skip") and next if ($rsi_data->[1] >= 38);
 
-    my $latest_price = $fxcm->getAsk($fxcm_symbol);
-    $logger->debug("Skip") and next if ( $trades[0] && ( $latest_price < $trades[0]->{openPrice} - 18 ) );
-
     $logger->debug("Max Exposure = $max_exposure");
     $logger->debug("Current Exposure = $symbol_exposure");
     $logger->debug("Increment = $exposure_increment");
+
+    if ($trades[0]) {
+        my $most_recent_trade = $trades[0];
+        my $trigger_price = $most_recent_trade->{openPrice} - 0.0018;
+        $logger->debug("Trigger price = $trigger_price");
+        my $latest_price = $fxcm->getAsk($fxcm_symbol);
+        $logger->debug("Latest price = $latest_price");
+        $logger->debug("Skip") and next if ( ($latest_price < $trigger_price);
+    }
+
     $logger->debug("Skip") and next if ( $max_exposure < $symbol_exposure + $exposure_increment);
 
     $logger->debug("Add position to $symbol ($exposure_increment)");
