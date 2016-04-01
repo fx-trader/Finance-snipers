@@ -35,9 +35,10 @@ $logger->logdie("FXCM_ACCOUNT_TYPE NOT DEFINED") if (!$ENV{FXCM_ACCOUNT_TYPE});
 
 my $symbol = "AUDUSD";          # The symbol to trade in
 my $fxcm_symbol = "AUD/USD";    # Finance::FXCM::Simple only knows about FXCM symbols which have a different format than Finance::HostedTrader symbols
-my $max_exposure = 70000;       # Maximum amount I'm willing to buy/sell in $symbol
+my $max_exposure = 75000;       # Maximum amount I'm willing to buy/sell in $symbol
 my $exposure_increment = 5000;  # How much more do I want to buy each time
 my $check_interval = 30;        # How many seconds to wait for before checking again if it's time to buy
+my $rsi_trigger = 37;
 
 $logger->debug("Sniper reporting for duty");
 $logger->debug("Symbol = $symbol");
@@ -58,7 +59,10 @@ while (1) {
     my $spread = sprintf("%.5f", $ask - $bid);
     $logger->debug("SPREAD = $spread");
 
-    my $macd_data = getIndicatorValue($symbol, '4hour', "macd(close, 12, 26, 9) - macdsig(close, 12, 26, 9)");
+    # Not actually using macd at the moment, just call it here for the side effect of
+    # macd value being printed in the logs
+    my $macd2_data = getIndicatorValue($symbol, '2hour', "macddiff(close, 12, 26, 9)");
+    my $macd4_data = getIndicatorValue($symbol, '4hour', "macddiff(close, 12, 26, 9)");
     my $rsi_data = getIndicatorValue($symbol, '5min', "rsi(close,14)");
 
     my $symbol_trades = $fxcm->getTradesForSymbol($fxcm_symbol);
@@ -66,10 +70,6 @@ while (1) {
     $logger->debug("$symbol exposure = $symbol_exposure");
 
     my @trades = sort { $b->{openDate} cmp $a->{openDate} } grep { $_->{direction} eq 'long' } @{ $symbol_trades || [] };
-    $logger->debug("LAST TRADE = " . $trades[0]->{openPrice}) if ( $trades[0]);
-
-#    $logger->debug("Skip macd") and next if ($macd_data->[1] >= 0);
-    $logger->debug("Skip rsi") and next if ($rsi_data->[1] >= 38);
 
     $logger->debug("Max Exposure = $max_exposure");
     $logger->debug("Current Exposure = $symbol_exposure");
@@ -77,13 +77,17 @@ while (1) {
 
     if ($trades[0]) {
         my $most_recent_trade = $trades[0];
+        my $seconds_ago = time() - convertToEpoch($most_recent_trade->{openDate});
+        $logger->debug("LAST TRADE [$most_recent_trade->{openDate}, ${seconds_ago}s ago] = " . $most_recent_trade->{openPrice});
         my $trigger_price = $most_recent_trade->{openPrice} - 0.0018;
         $logger->debug("Trigger price = $trigger_price");
         my $latest_price = $fxcm->getAsk($fxcm_symbol);
         $logger->debug("Latest price = $latest_price");
-        $logger->debug("Skip trigger price") and next if ($latest_price < $trigger_price);
+        $logger->debug("Skip trigger price") and next if ($latest_price > $trigger_price);
     }
 
+#    $logger->debug("Skip macd") and next if ($macd4_data->[1] >= 0);
+    $logger->debug("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
     $logger->debug("Skip exposure") and next if ( $max_exposure < $symbol_exposure + $exposure_increment);
 
     $logger->debug("Add position to $symbol ($exposure_increment)");
@@ -111,9 +115,18 @@ sub getIndicatorValue {
         });
     $signal_processor = undef;
     $logger->logdie("Failed to retrieve indicator '$indicator'") if (!$data || !$data->[0]);
-    $logger->debug("$indicator [$data->[0]->[0]] = $data->[0]->[1]");
+    $logger->debug("$indicator [$data->[0]->[0]] ($tf) = $data->[0]->[1]");
 
     return $data->[0];
+}
+
+sub convertToEpoch {
+    my $datetime = shift;
+    use DateTime::Format::Strptime;
+
+    my $parser = DateTime::Format::Strptime->new(pattern => "%Y-%m-%d %H:%M:%S", on_error=> "croak");
+    my $dt = $parser->parse_datetime($datetime); 
+    return $dt->epoch;
 }
 
 1;
