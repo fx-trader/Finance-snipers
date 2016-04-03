@@ -33,19 +33,20 @@ $logger->logdie("FXCM_USERNAME NOT DEFINED") if (!$ENV{FXCM_USERNAME});
 $logger->logdie("FXCM_PASSWORD NOT DEFINED") if (!$ENV{FXCM_PASSWORD});
 $logger->logdie("FXCM_ACCOUNT_TYPE NOT DEFINED") if (!$ENV{FXCM_ACCOUNT_TYPE});
 
-my $symbol = "AUDUSD";          # The symbol to trade in
-my $fxcm_symbol = "AUD/USD";    # Finance::FXCM::Simple only knows about FXCM symbols which have a different format than Finance::HostedTrader symbols
-my $max_exposure = 70000;       # Maximum amount I'm willing to buy/sell in $symbol
-my $exposure_increment = 5000;  # How much more do I want to buy each time
+my $symbol = $ENV{SYMBOL} || $logger->logdie("SYMBOL NOT DEFINED");          # The symbol to trade in
+my $fxcm_symbol = $ENV{FXCM_SYMBOL} || $logger->logdie("FXCM_SYMBOL NOT DEFINED");    # Finance::FXCM::Simple only knows about FXCM symbols which have a different format than Finance::HostedTrader symbols
+my $max_exposure = $ENV{MAX_EXPOSURE} || $logger->logdie("MAX_EXPOSURE NOT DEFINED");       # Maximum amount I'm willing to buy/sell in $symbol
+my $exposure_increment = $ENV{EXPOSURE_INCREMENT} || $logger->logdie("EXPOSURE_INCREMENT NOT DEFINED");  # How much more do I want to buy each time
 my $check_interval = 30;        # How many seconds to wait for before checking again if it's time to buy
-my $direction = "B";
+my $direction = $ENV{DIRECTION} || $logger->logdie("DIRECTION NOT DEFINED"); # B (Buy/Long) or S (Sell/Short)
 
 $logger->debug("Sniper reporting for duty");
-$logger->debug("Symbol = $symbol");
-$logger->debug("Check Interval = $check_interval seconds");
+$logger->debug("ACCOUNT ID = $ENV{FXCM_USERNAME} ($ENV{FXCM_ACCOUNT_TYPE})");
+$logger->debug("SYMBOL = $symbol");
+$logger->debug("INTERVAL = $check_interval seconds");
 
 while (1) {
-    last if ( -f "/tmp/sniper_disengage" );
+    last if ( -f "/tmp/snipers_disengage" );
 
     sleep($check_interval);
 
@@ -99,7 +100,7 @@ while (1) {
 
 $logger->debug("Sniper disengaged");
 
-unlink("/tmp/sniper_disengage");
+unlink("/tmp/snipers_disengage");
 
 sub getIndicatorValue {
     my $symbol = shift;
