@@ -35,10 +35,10 @@ $logger->logdie("FXCM_ACCOUNT_TYPE NOT DEFINED") if (!$ENV{FXCM_ACCOUNT_TYPE});
 
 my $symbol = "AUDUSD";          # The symbol to trade in
 my $fxcm_symbol = "AUD/USD";    # Finance::FXCM::Simple only knows about FXCM symbols which have a different format than Finance::HostedTrader symbols
-my $max_exposure = 75000;       # Maximum amount I'm willing to buy/sell in $symbol
+my $max_exposure = 70000;       # Maximum amount I'm willing to buy/sell in $symbol
 my $exposure_increment = 5000;  # How much more do I want to buy each time
 my $check_interval = 30;        # How many seconds to wait for before checking again if it's time to buy
-my $rsi_trigger = 37;
+my $direction = "B";
 
 $logger->debug("Sniper reporting for duty");
 $logger->debug("Symbol = $symbol");
@@ -79,19 +79,20 @@ while (1) {
         my $most_recent_trade = $trades[0];
         my $seconds_ago = time() - convertToEpoch($most_recent_trade->{openDate});
         $logger->debug("LAST TRADE [$most_recent_trade->{openDate}, ${seconds_ago}s ago] = " . $most_recent_trade->{openPrice});
-        my $trigger_price = $most_recent_trade->{openPrice} - 0.0018;
-        $logger->debug("Trigger price = $trigger_price");
         my $latest_price = $fxcm->getAsk($fxcm_symbol);
         $logger->debug("Latest price = $latest_price");
-        $logger->debug("Skip trigger price") and next if ($latest_price > $trigger_price);
+        $logger->debug("Skip trade opened recently") and next if ($seconds_ago < 3600);
     }
 
 #    $logger->debug("Skip macd") and next if ($macd4_data->[1] >= 0);
+    my $rsi_trigger = ($macd4_data->[1] > 0 ? 38 : 32 );
+    $logger->debug("Set RSI trigger at $rsi_trigger");
     $logger->debug("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
-    $logger->debug("Skip exposure") and next if ( $max_exposure < $symbol_exposure + $exposure_increment);
+    $logger->debug("Skip exposure") and next if ( $max_exposure < $symbol_exposure );
 
-    $logger->debug("Add position to $symbol ($exposure_increment)");
-    $fxcm->openMarket($fxcm_symbol, ($exposure_increment > 0 ? "B" : "S"), abs($exposure_increment));
+    my $open_position_size = ($symbol_exposure + $exposure_increment > $max_exposure ? $max_exposure - $symbol_exposure : $exposure_increment );
+    $logger->debug("Add position to $symbol ($open_position_size)");
+    $fxcm->openMarket($fxcm_symbol, $direction, $open_position_size);
 
     $fxcm = undef; #This logouts from the FXCM session, and can take a few seconds to return
 }
