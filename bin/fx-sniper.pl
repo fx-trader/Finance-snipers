@@ -12,6 +12,8 @@ use List::Util qw(sum0);
 use Finance::HostedTrader::ExpressionParser;
 use Finance::FXCM::Simple;
 
+my $time_limit = time() + 1320;
+
 # Initialize Logger
 my $log_conf = q(
 log4perl rootLogger = DEBUG, SCREEN
@@ -46,7 +48,11 @@ $logger->debug("SYMBOL = $symbol");
 $logger->debug("INTERVAL = $check_interval seconds");
 
 while (1) {
-    last if ( -f "/tmp/snipers_disengage" );
+    #last if ( -f "/tmp/snipers_disengage" );
+    if (time() > $time_limit) {
+        $logger->debug("Exiting to allow memory cleanup");
+        last;
+    }
 
     sleep($check_interval);
 
@@ -86,7 +92,7 @@ while (1) {
     }
 
 #    $logger->debug("Skip macd") and next if ($macd4_data->[1] >= 0);
-    my $rsi_trigger = ($macd4_data->[1] > 0 ? 38 : 30 );
+    my $rsi_trigger = ($macd4_data->[1] > 0 ? 38 : 31 );
     $logger->debug("Set RSI trigger at $rsi_trigger");
     $logger->debug("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
     $logger->debug("Skip exposure") and next if ( $max_exposure < $symbol_exposure );
@@ -100,7 +106,7 @@ while (1) {
 
 $logger->debug("Sniper disengaged");
 
-unlink("/tmp/snipers_disengage");
+#unlink("/tmp/snipers_disengage");
 
 sub getIndicatorValue {
     my $symbol = shift;
