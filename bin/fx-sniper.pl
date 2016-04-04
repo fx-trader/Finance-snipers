@@ -86,7 +86,7 @@ while (1) {
     }
 
 #    $logger->debug("Skip macd") and next if ($macd4_data->[1] >= 0);
-    my $rsi_trigger = ($macd4_data->[1] > 0 ? 38 : 32 );
+    my $rsi_trigger = ($macd4_data->[1] > 0 ? 38 : 30 );
     $logger->debug("Set RSI trigger at $rsi_trigger");
     $logger->debug("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
     $logger->debug("Skip exposure") and next if ( $max_exposure < $symbol_exposure );
