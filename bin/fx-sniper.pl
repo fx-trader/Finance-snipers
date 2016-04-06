@@ -102,6 +102,7 @@ while (1) {
     $fxcm->openMarket($fxcm_symbol, $direction, $open_position_size);
 
     $fxcm = undef; #This logouts from the FXCM session, and can take a few seconds to return
+    zap( { subject => "fx-sniper: openmarket", message => "$fxcm_symbol\n$direction\n$open_position_size\n$ask\nRSI ($rsi_data->[0]) = $rsi_data->[1]\n" } );
 }
 
 $logger->debug("Sniper disengaged");
@@ -135,6 +136,34 @@ sub convertToEpoch {
     my $parser = DateTime::Format::Strptime->new(pattern => "%Y-%m-%d %H:%M:%S", on_error=> "croak");
     my $dt = $parser->parse_datetime($datetime); 
     return $dt->epoch;
+}
+
+
+# Post a request to zapier
+sub zap {
+    use LWP::UserAgent;
+    use JSON::MaybeXS;
+
+    my $obj = shift;
+
+    my $url = 'https://zapier.com/hooks/catch/782272/3f0nap/';
+
+    my $ua      = LWP::UserAgent->new();
+    my $response = $ua->post( $url, Content_Type => 'application/json', Content => encode_json($obj) );
+
+    if ($response->is_success) {
+        my $response_body = $response->as_string();
+        $logger->debug($response_body);
+        my $result = decode_json($response_body);
+        if ($result->{status} && $result->{status} eq 'success') {
+            $logger->info("Sent request to $url successfully");
+        } else {
+            $logger->error("Request to $url came back without success");
+        }
+    } else {
+        $logger->error("Error sending request to $url");
+        $logger->error($response->status_line());
+    }
 }
 
 1;
