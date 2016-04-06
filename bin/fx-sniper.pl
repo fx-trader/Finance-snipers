@@ -79,7 +79,6 @@ while (1) {
     my @trades = sort { $b->{openDate} cmp $a->{openDate} } grep { $_->{direction} eq 'long' } @{ $symbol_trades || [] };
 
     $logger->debug("Max Exposure = $max_exposure");
-    $logger->debug("Current Exposure = $symbol_exposure");
     $logger->debug("Increment = $exposure_increment");
 
     if ($trades[0]) {
