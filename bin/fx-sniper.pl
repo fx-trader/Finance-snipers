@@ -21,7 +21,7 @@ log4perl rootLogger = DEBUG, SCREEN
 log4perl.appender.SCREEN         = Log::Log4perl::Appender::Screen
 log4perl.appender.SCREEN.stderr  = 0
 log4perl.appender.SCREEN.layout  = Log::Log4perl::Layout::PatternLayout
-log4perl.appender.SCREEN.layout.ConversionPattern = %d{ISO8601} %m %n
+log4perl.appender.SCREEN.layout.ConversionPattern = %m %n
 #log4perl.appender.LOG1 = Log::Log4perl::Appender::File
 #log4perl.appender.LOG1.filename = ./sniper.log
 #log4perl.appender.LOG1.mode = append
@@ -40,7 +40,8 @@ my $fxcm_symbol = $ENV{FXCM_SYMBOL} || $logger->logdie("FXCM_SYMBOL NOT DEFINED"
 my $max_exposure = $ENV{MAX_EXPOSURE} || $logger->logdie("MAX_EXPOSURE NOT DEFINED");       # Maximum amount I'm willing to buy/sell in $symbol
 my $exposure_increment = $ENV{EXPOSURE_INCREMENT} || $logger->logdie("EXPOSURE_INCREMENT NOT DEFINED");  # How much more do I want to buy each time
 my $check_interval = 30;        # How many seconds to wait for before checking again if it's time to buy
-my $direction = $ENV{DIRECTION} || $logger->logdie("DIRECTION NOT DEFINED"); # B (Buy/Long) or S (Sell/Short)
+my $direction = $ENV{DIRECTION} || $logger->logdie("DIRECTION NOT DEFINED");
+$logger->logdie("DIRECTION has to be either 'long' or 'short'") unless ($direction eq 'long' or $direction eq 'short');
 
 $logger->debug("Sniper reporting for duty");
 $logger->debug("ACCOUNT ID = $ENV{FXCM_USERNAME} ($ENV{FXCM_ACCOUNT_TYPE})");
@@ -66,17 +67,17 @@ while (1) {
     my $spread = sprintf("%.5f", $ask - $bid);
     $logger->debug("SPREAD = $spread");
 
-    # Not actually using macd at the moment, just call it here for the side effect of
-    # macd value being printed in the logs
+    # macd2_data not used at the moment, just call it here for the side effect of
+    # macd value over 2hour timeframe being printed in the logs
     my $macd2_data = getIndicatorValue($symbol, '2hour', "macddiff(close, 12, 26, 9)");
     my $macd4_data = getIndicatorValue($symbol, '4hour', "macddiff(close, 12, 26, 9)");
     my $rsi_data = getIndicatorValue($symbol, '5min', "rsi(close,14)");
 
     my $symbol_trades = $fxcm->getTradesForSymbol($fxcm_symbol);
-    my $symbol_exposure = sum0 map { $_->{direction} eq 'long' ? $_->{size} : $_->{size} * (-1) }  @$symbol_trades;
+    my $symbol_exposure = sum0 map { $_->{size} }  @$symbol_trades;
     $logger->debug("$symbol exposure = $symbol_exposure");
 
-    my @trades = sort { $b->{openDate} cmp $a->{openDate} } grep { $_->{direction} eq 'long' } @{ $symbol_trades || [] };
+    my @trades = sort { $b->{openDate} cmp $a->{openDate} } grep { $_->{direction} eq $direction } @{ $symbol_trades || [] };
 
     $logger->debug("Max Exposure = $max_exposure");
     $logger->debug("Increment = $exposure_increment");
@@ -91,14 +92,21 @@ while (1) {
     }
 
 #    $logger->debug("Skip macd") and next if ($macd4_data->[1] >= 0);
-    my $rsi_trigger = ($macd4_data->[1] > 0 ? 38 : 31 );
-    $logger->debug("Set RSI trigger at $rsi_trigger");
-    $logger->debug("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
+    if ($direction eq 'long') {
+        my $rsi_trigger = ($macd4_data->[1] > 0 ? 37 : 31 );
+        $logger->debug("Set RSI trigger at $rsi_trigger");
+        $logger->debug("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
+    } else {
+        my $rsi_trigger = ($macd4_data->[1] < 0 ? 63 : 69 );
+        $logger->debug("Set RSI trigger at $rsi_trigger");
+        $logger->debug("Skip rsi") and next if ($rsi_data->[1] <= $rsi_trigger);
+    }
+
     $logger->debug("Skip exposure") and next if ( $max_exposure < $symbol_exposure );
 
     my $open_position_size = ($symbol_exposure + $exposure_increment > $max_exposure ? $max_exposure - $symbol_exposure : $exposure_increment );
     $logger->debug("Add position to $symbol ($open_position_size)");
-    $fxcm->openMarket($fxcm_symbol, $direction, $open_position_size);
+    $fxcm->openMarket($fxcm_symbol, HOSTED_TRADER_2_FXCM_DIRECTION($direction), $open_position_size);
 
     $fxcm = undef; #This logouts from the FXCM session, and can take a few seconds to return
     zap( { subject => "fx-sniper: openmarket", message => "$fxcm_symbol\n$direction\n$open_position_size\n$ask\nRSI ($rsi_data->[0]) = $rsi_data->[1]\n" } );
@@ -107,6 +115,19 @@ while (1) {
 $logger->debug("Sniper disengaged");
 
 #unlink("/tmp/snipers_disengage");
+exit(1);
+
+# Trade direction can be long or short
+# In FXCM, a long is represented by 'B' and a short by 'S'
+# In HostedTrader, by 'long' and 'short'
+# This function translates the hosted trader value to the fxcm value
+sub HOSTED_TRADER_2_FXCM_DIRECTION {
+    my $direction = shift;
+
+    return 'B' if ($direction eq 'long');
+    return 'S' if ($direction eq 'short');
+    $logger->logdie("Invalid direction value '$direction'");
+}
 
 sub getIndicatorValue {
     my $symbol = shift;
