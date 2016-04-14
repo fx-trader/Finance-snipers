@@ -12,7 +12,7 @@ use List::Util qw(sum0);
 use Finance::HostedTrader::ExpressionParser;
 use Finance::FXCM::Simple;
 
-my $time_limit = time() + 1320;
+my $time_limit = time() + 1320; #Force a restart after 1320 seconds, to cleanup memory usage
 
 # Initialize Logger
 my $log_conf = q(
@@ -174,7 +174,7 @@ sub zap {
     if ($response->is_success) {
         my $response_body = $response->as_string();
         $logger->debug($response_body);
-        my $result = decode_json($response_body);
+        my $result = decode_json($response->content);
         if ($result->{status} && $result->{status} eq 'success') {
             $logger->info("Sent request to $url successfully");
         } else {
