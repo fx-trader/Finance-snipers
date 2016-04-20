@@ -72,6 +72,10 @@ while (1) {
     my $macd2_data = getIndicatorValue($symbol, '2hour', "macddiff(close, 12, 26, 9)");
     my $macd4_data = getIndicatorValue($symbol, '4hour', "macddiff(close, 12, 26, 9)");
     my $rsi_data = getIndicatorValue($symbol, '5min', "rsi(close,14)");
+    my $ema_data = getIndicatorValue($symbol, '5min', "ema(close,200)");
+    my $pivot_data = getIndicatorValue($symbol, '4hour', ($direction eq 'long' ? 'max' : 'min')."(close,14)");
+    my $atr_data = getIndicatorValue($symbol, '4hour', "atr(14)");
+    my $multiplier = ($pivot_data->[1] - $ask ) / $atr_data->[1]; #TODO hardcoded for long positions only
 
     my $symbol_trades = $fxcm->getTradesForSymbol($fxcm_symbol);
     my $symbol_exposure = sum0 map { $_->{size} }  @$symbol_trades;
@@ -81,6 +85,7 @@ while (1) {
 
     $logger->debug("Max Exposure = $max_exposure");
     $logger->debug("Increment = $exposure_increment");
+    $logger->debug("Multiplier = $multiplier");
 
     if ($trades[0]) {
         my $most_recent_trade = $trades[0];
@@ -93,11 +98,11 @@ while (1) {
 
 #    $logger->debug("Skip macd") and next if ($macd4_data->[1] >= 0);
     if ($direction eq 'long') {
-        my $rsi_trigger = ($macd4_data->[1] > 0 ? 37 : 31 );
+        my $rsi_trigger = 35;
         $logger->debug("Set RSI trigger at $rsi_trigger");
         $logger->debug("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
     } else {
-        my $rsi_trigger = ($macd4_data->[1] < 0 ? 63 : 69 );
+        my $rsi_trigger = 65;
         $logger->debug("Set RSI trigger at $rsi_trigger");
         $logger->debug("Skip rsi") and next if ($rsi_data->[1] <= $rsi_trigger);
     }
@@ -109,7 +114,7 @@ while (1) {
     $fxcm->openMarket($fxcm_symbol, HOSTED_TRADER_2_FXCM_DIRECTION($direction), $open_position_size);
 
     $fxcm = undef; #This logouts from the FXCM session, and can take a few seconds to return
-    zap( { subject => "fx-sniper: openmarket", message => "$fxcm_symbol\n$direction\n$open_position_size\n$ask\nRSI ($rsi_data->[0]) = $rsi_data->[1]\n" } );
+    zap( { subject => "fx-sniper: openmarket", message => "$fxcm_symbol\n$direction\nMULTIPLIER = $multiplier\n$open_position_size\n$ask\nRSI ($rsi_data->[0]) = $rsi_data->[1]\n" } );
 }
 
 $logger->debug("Sniper disengaged");
