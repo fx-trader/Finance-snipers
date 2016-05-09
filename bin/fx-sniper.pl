@@ -48,18 +48,18 @@ $logger->debug("ACCOUNT ID = $ENV{FXCM_USERNAME} ($ENV{FXCM_ACCOUNT_TYPE})");
 $logger->debug("SYMBOL = $symbol");
 $logger->debug("INTERVAL = $check_interval seconds");
 
+my $fxcm = Finance::FXCM::Simple->new($ENV{FXCM_USERNAME}, $ENV{FXCM_PASSWORD}, $ENV{FXCM_ACCOUNT_TYPE}, 'http://www.fxcorporate.com/Hosts.jsp');
 while (1) {
     #last if ( -f "/tmp/snipers_disengage" );
     if (time() > $time_limit) {
-        $logger->debug("Exiting to allow memory cleanup");
-        last;
+        #$logger->debug("Exiting to allow memory cleanup");
+        #last;
     }
 
     sleep($check_interval);
 
     $logger->debug("--------------------");
 
-    my $fxcm = Finance::FXCM::Simple->new($ENV{FXCM_USERNAME}, $ENV{FXCM_PASSWORD}, $ENV{FXCM_ACCOUNT_TYPE}, 'http://www.fxcorporate.com/Hosts.jsp');
     my $bid = $fxcm->getBid($fxcm_symbol); # The price I can sell at
     my $ask = $fxcm->getAsk($fxcm_symbol); # The price I can buy at
     $logger->debug("BID = $bid");
@@ -96,6 +96,8 @@ while (1) {
         $logger->debug("Skip trade opened recently") and next if ($seconds_ago < 3600);
     }
 
+    $logger->debug("Skip multiplier <1") if ( $multiplier < 1);
+
 #    $logger->debug("Skip macd") and next if ($macd4_data->[1] >= 0);
     if ($direction eq 'long') {
         my $rsi_trigger = 35;
@@ -113,7 +115,7 @@ while (1) {
     $logger->debug("Add position to $symbol ($open_position_size)");
     $fxcm->openMarket($fxcm_symbol, HOSTED_TRADER_2_FXCM_DIRECTION($direction), $open_position_size);
 
-    $fxcm = undef; #This logouts from the FXCM session, and can take a few seconds to return
+    #$fxcm = undef; #This logouts from the FXCM session, and can take a few seconds to return
     zap( { subject => "fx-sniper: openmarket", message => "$fxcm_symbol\n$direction\nMULTIPLIER = $multiplier\n$open_position_size\n$ask\nRSI ($rsi_data->[0]) = $rsi_data->[1]\n" } );
 }
 
@@ -131,7 +133,7 @@ sub HOSTED_TRADER_2_FXCM_DIRECTION {
 
     return 'B' if ($direction eq 'long');
     return 'S' if ($direction eq 'short');
-    $logger->logdie("Invalid direction value '$direction'");
+    $logger->logconfess("Invalid direction value '$direction'");
 }
 
 sub getIndicatorValue {
