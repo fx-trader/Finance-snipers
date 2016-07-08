@@ -48,12 +48,12 @@ $logger->debug("ACCOUNT ID = $ENV{FXCM_USERNAME} ($ENV{FXCM_ACCOUNT_TYPE})");
 $logger->debug("SYMBOL = $symbol");
 $logger->debug("INTERVAL = $check_interval seconds");
 
-my $fxcm = Finance::FXCM::Simple->new($ENV{FXCM_USERNAME}, $ENV{FXCM_PASSWORD}, $ENV{FXCM_ACCOUNT_TYPE}, 'http://www.fxcorporate.com/Hosts.jsp');
 while (1) {
+    my $fxcm = Finance::FXCM::Simple->new($ENV{FXCM_USERNAME}, $ENV{FXCM_PASSWORD}, $ENV{FXCM_ACCOUNT_TYPE}, 'http://www.fxcorporate.com/Hosts.jsp');
     #last if ( -f "/tmp/snipers_disengage" );
     if (time() > $time_limit) {
-        #$logger->debug("Exiting to allow memory cleanup");
-        #last;
+        $logger->debug("Exiting to allow memory cleanup");
+        last;
     }
 
     sleep($check_interval);
@@ -96,17 +96,18 @@ while (1) {
         $logger->debug("Skip trade opened recently") and next if ($seconds_ago < 3600);
     }
 
-    $logger->debug("Skip multiplier <1") if ( $multiplier < 1);
+    $logger->debug("Skip multiplier <1") and next if ( $multiplier < 1);
 
-#    $logger->debug("Skip macd") and next if ($macd4_data->[1] >= 0);
     if ($direction eq 'long') {
         my $rsi_trigger = 35;
         $logger->debug("Set RSI trigger at $rsi_trigger");
         $logger->debug("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
+        $logger->debug("Skip macd") and next if ($macd4_data->[1] >= 0);
     } else {
         my $rsi_trigger = 65;
         $logger->debug("Set RSI trigger at $rsi_trigger");
         $logger->debug("Skip rsi") and next if ($rsi_data->[1] <= $rsi_trigger);
+        $logger->debug("Skip macd") and next if ($macd4_data->[1] <= 0);
     }
 
     $logger->debug("Skip exposure") and next if ( $max_exposure < $symbol_exposure );
@@ -115,8 +116,8 @@ while (1) {
     $logger->debug("Add position to $symbol ($open_position_size)");
     $fxcm->openMarket($fxcm_symbol, HOSTED_TRADER_2_FXCM_DIRECTION($direction), $open_position_size);
 
-    #$fxcm = undef; #This logouts from the FXCM session, and can take a few seconds to return
-    zap( { subject => "fx-sniper: openmarket", message => "$fxcm_symbol\n$direction\nMULTIPLIER = $multiplier\n$open_position_size\n$ask\nRSI ($rsi_data->[0]) = $rsi_data->[1]\n" } );
+    zap( { subject => "fx-sniper: openmarket", message => "$fxcm_symbol\n$direction\nMULTIPLIER = $multiplier\nPOSITION SIZE = $open_position_size\nASK Price = $ask\nRSI ($rsi_data->[0]) = $rsi_data->[1]\n" } );
+    $fxcm = undef; #This logouts from the FXCM session, and can take a few seconds to return
 }
 
 $logger->debug("Sniper disengaged");
