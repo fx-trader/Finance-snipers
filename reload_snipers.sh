@@ -4,7 +4,8 @@ set -euo pipefail
 
 . ~/fxcm.real
 
-cd /root/Finance-snipers
+SNIPER_DIR=`pwd -P`
+cd $SNIPER_DIR
 git pull origin master
 
 function load_sniper {
@@ -19,7 +20,7 @@ function load_sniper {
             --link fxdata \
             -h ${SNIPER_ID}.fxhistoricaldata.com \
             -v /root/fxtrader.cfg:/etc/fxtrader \
-            -v /root/Finance-snipers/bin:/root/snipers \
+            -v $SNIPER_DIR/bin:/root/snipers \
             -e FXCM_USERNAME -e FXCM_PASSWORD -e FXCM_ACCOUNT_TYPE \
             -e SYMBOL -e FXCM_SYMBOL \
             -e MAX_EXPOSURE -e EXPOSURE_INCREMENT -e DIRECTION \
