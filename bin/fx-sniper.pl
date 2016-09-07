@@ -86,6 +86,10 @@ while (1) {
     $logger->debug("Max Exposure = $max_exposure");
     $logger->debug("Increment = $exposure_increment");
     $logger->debug("Multiplier = $multiplier");
+    my $min_trade_size = $fxcm->getBaseUnitSize($fxcm_symbol);
+    $logger->debug("Min trade size = $min_trade_size");
+    my $adjusted_exposure_increment = int($exposure_increment * abs($multiplier) / $min_trade_size) * $min_trade_size;
+    $logger->debug("Adjusted incremental position size = $adjusted_exposure_increment");
 
     if ($trades[0]) {
         my $most_recent_trade = $trades[0];
@@ -112,7 +116,7 @@ while (1) {
 
     $logger->debug("Skip exposure") and next if ( $max_exposure < $symbol_exposure );
 
-    my $open_position_size = ($symbol_exposure + $exposure_increment > $max_exposure ? $max_exposure - $symbol_exposure : $exposure_increment );
+    my $open_position_size = ($symbol_exposure + $adjusted_exposure_increment > $max_exposure ? $max_exposure - $symbol_exposure : $adjusted_exposure_increment );
     $logger->debug("Add position to $symbol ($open_position_size)");
     $fxcm->openMarket($fxcm_symbol, HOSTED_TRADER_2_FXCM_DIRECTION($direction), $open_position_size);
 
