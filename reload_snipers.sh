@@ -28,8 +28,8 @@ function load_sniper {
             -d fxtrader/scripts sh -c 'exec /usr/bin/perl /root/snipers/fx-sniper.pl'
 }
 
-SYMBOL=XAGUSD FXCM_SYMBOL='XAG/USD' \
-MAX_EXPOSURE=2100 EXPOSURE_INCREMENT=50 DIRECTION=long \
+SYMBOL=EURGBP FXCM_SYMBOL='EUR/GBP' \
+MAX_EXPOSURE=60000 EXPOSURE_INCREMENT=1000 DIRECTION=short \
 load_sniper
 
 #SYMBOL=XAGUSD FXCM_SYMBOL='XAG/USD' \
