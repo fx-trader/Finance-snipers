@@ -73,9 +73,6 @@ while (1) {
     my $macd4_data = getIndicatorValue($symbol, '4hour', "macddiff(close, 12, 26, 9)");
     my $rsi_data = getIndicatorValue($symbol, '5min', "rsi(close,14)");
     my $ema_data = getIndicatorValue($symbol, '5min', "ema(close,200)");
-    my $pivot_data = getIndicatorValue($symbol, '4hour', ($direction eq 'long' ? 'max' : 'min')."(close,14)");
-    my $atr_data = getIndicatorValue($symbol, '4hour', "atr(14)");
-    my $multiplier = ($pivot_data->[1] - $ask ) / $atr_data->[1]; #TODO hardcoded for long positions only
 
     my $symbol_trades = $fxcm->getTradesForSymbol($fxcm_symbol);
     my $symbol_exposure = sum0 map { $_->{size} }  @$symbol_trades;
@@ -85,11 +82,8 @@ while (1) {
 
     $logger->debug("Max Exposure = $max_exposure");
     $logger->debug("Increment = $exposure_increment");
-    $logger->debug("Multiplier = $multiplier");
     my $min_trade_size = $fxcm->getBaseUnitSize($fxcm_symbol);
     $logger->debug("Min trade size = $min_trade_size");
-    my $adjusted_exposure_increment = int($exposure_increment * abs($multiplier) / $min_trade_size) * $min_trade_size;
-    $logger->debug("Adjusted incremental position size = $adjusted_exposure_increment");
 
     if ($trades[0]) {
         my $most_recent_trade = $trades[0];
@@ -100,19 +94,29 @@ while (1) {
         $logger->debug("Skip trade opened recently") and next if ($seconds_ago < 3600);
     }
 
-    $logger->debug("Skip multiplier <1") and next if ( $multiplier < 1);
-
+    my $multiplier;
+    my $atr_data = getIndicatorValue($symbol, '4hour', "atr(14)");
     if ($direction eq 'long') {
+        my $pivot_data = getIndicatorValue($symbol, '4hour', 'max(close,14)');
         my $rsi_trigger = 35;
+        $multiplier = ($pivot_data->[1] - $ask ) / $atr_data->[1];
         $logger->debug("Set RSI trigger at $rsi_trigger");
         $logger->debug("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
         $logger->debug("Skip macd") and next if ($macd4_data->[1] >= 0);
     } else {
+        my $pivot_data = getIndicatorValue($symbol, '4hour', 'min(close,14)');
         my $rsi_trigger = 65;
+        $multiplier = ($bid - $pivot_data->[1]) / $atr_data->[1];
         $logger->debug("Set RSI trigger at $rsi_trigger");
         $logger->debug("Skip rsi") and next if ($rsi_data->[1] <= $rsi_trigger);
         $logger->debug("Skip macd") and next if ($macd4_data->[1] <= 0);
     }
+
+    $logger->debug("Multiplier = $multiplier");
+    my $adjusted_exposure_increment = int($exposure_increment * abs($multiplier) / $min_trade_size) * $min_trade_size;
+    $logger->debug("Adjusted incremental position size = $adjusted_exposure_increment");
+
+    $logger->debug("Skip multiplier <1") and next if ( $multiplier < 1);
 
     $logger->debug("Skip exposure") and next if ( $max_exposure < $symbol_exposure );
 
