@@ -17,7 +17,7 @@ log4perl rootLogger = INFO, SCREEN
 log4perl.appender.SCREEN         = Log::Log4perl::Appender::Screen
 log4perl.appender.SCREEN.stderr  = 0
 log4perl.appender.SCREEN.layout  = Log::Log4perl::Layout::PatternLayout
-log4perl.appender.SCREEN.layout.ConversionPattern = %m %n
+log4perl.appender.SCREEN.layout.ConversionPattern = %d{ISO8601} %m %n
 #log4perl.appender.LOG1 = Log::Log4perl::Appender::File
 #log4perl.appender.LOG1.filename = ./sniper.log
 #log4perl.appender.LOG1.mode = append
@@ -42,24 +42,28 @@ my %signals = (
 #            instruments => join(",", @{ get_all_instruments() }),
 #            item_count  => 1,
 #        },
+#        interval => 300,
 #        description => "",
 #    },
     "bouncing_cat" => {
         args => {
-            expression  => "day(open > close and tr()>2*atr(14)) and 15minute(rsi(close,14)>60)",
+            #expression  => "day(open > close and tr()>2*atr(14)) and 15minute(rsi(close,14)>60)",
+            expression  => "tr()>2*atr(14)",
+            timeframe => "day",
             start_period=> "1 hour ago",
             instruments => $all_instruments,
             item_count  => 1,
         },
-        description => "",
+        interval => 7200,
+        description => "Range double the average",
     },
     "strong_USD" => {
         args => {
-            expression  => "rsi(close,14) < 40",
-            timeframe   => "4hour",
+            expression  => "4hour(rsi(close,14) < 42) and 15minute(rsi(close,14) < 38)",
             start_period=> "1 hour ago",
             instruments => "USDOLLAR",
         },
+        interval => 300,
         description => "Long USD weakness",
     },
     "daily_retraction" => {
@@ -70,23 +74,36 @@ my %signals = (
             max_loaded_items => 50000,
             instruments => $all_instruments,
         },
-        description => "Long USD weakness",
+        interval => 10200,
+        description => "Retracement to support",
     },
 );
+
+my %lastSignalCheck = map { $_ => 0 } keys %signals;
 
 while (1) {
     foreach my $signal_name (keys %signals) {
         my $signal = $signals{$signal_name};
 
-        $logger->info("Processing signal $signal_name");
+        $logger->info("$signal_name: begin");
+        my $signal_interval = $signal->{interval} || $logger->logdie("No interval defined for signal $signal_name");
+        my $signal_check_in = $lastSignalCheck{$signal_name} + $signal_interval - time();
+        if ( $signal_check_in > 0 ) {
+            $logger->info("$signal_name: due in $signal_check_in seconds");
+            next;
+        }
         my $results = get_signal($signal);
         if ($results) {
-    #        $logger->info($results);
+            $logger->info("$signal_name: $results");
             zap( { subject => "fx-signal-check: $signal_name", message => $results } );
+        } else {
+            $logger->info("$signal_name: No trigger");
         }
+        $lastSignalCheck{$signal_name} = time();
     }
 
-    sleep(180);
+    $logger->info("Sleeping");
+    sleep(30);
 }
 
 sub get_signal {
@@ -96,6 +113,8 @@ sub get_signal {
 
     my $query_string = join("&", map { "$_=$args->{$_}" } keys(%$args));
     my $url = "$api_base/signals?$query_string";
+
+    $logger->debug($url);
 
     my $result = get_endpoint_result($url);
 
