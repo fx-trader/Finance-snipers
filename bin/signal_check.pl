@@ -45,6 +45,28 @@ my %signals = (
 #        interval => 300,
 #        description => "",
 #    },
+    "reversal short" => {
+        args => {
+            expression  => "rsi(close,14) < 30 and previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30",
+            timeframe => "15min",
+            start_period=> "1 hour ago",
+            instruments => $all_instruments,
+            item_count  => 1,
+        },
+        interval => 3600,
+        description => "RSI gone mad",
+    },
+    "reversal long" => {
+        args => {
+            expression  => "rsi(close,14) > 70 and previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70",
+            timeframe => "15min",
+            start_period=> "1 hour ago",
+            instruments => $all_instruments,
+            item_count  => 1,
+        },
+        interval => 3600,
+        description => "RSI gone mad",
+    },
     "bouncing_cat" => {
         args => {
             #expression  => "day(open > close and tr()>2*atr(14)) and 15minute(rsi(close,14)>60)",
@@ -66,7 +88,7 @@ my %signals = (
         interval => 300,
         description => "Long USD weakness",
     },
-    "daily_retraction" => {
+    "daily_retraction long" => {
         args => {
             expression  => "min(low,5)%2B0.5*atr(14) > previous(max(close,50),50) and rsi(close,14)<38",
             timeframe   => "day",
@@ -75,8 +97,20 @@ my %signals = (
             instruments => $all_instruments,
         },
         interval => 10200,
-        description => "Retracement to support",
+        description => "Retracement to support long",
     },
+    "daily_retraction short" => {
+        args => {
+            expression  => "max(high,5)%2B0.5*atr(14) < previous(min(close,50),50) and rsi(close,14)>62",
+            timeframe   => "day",
+            start_period=> "1 hour ago",
+            max_loaded_items => 50000,
+            instruments => $all_instruments,
+        },
+        interval => 10200,
+        description => "Retracement to support short",
+    },
+
 );
 
 my %lastSignalCheck = map { $_ => 0 } keys %signals;
