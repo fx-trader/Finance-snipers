@@ -45,7 +45,7 @@ my %signals = (
 #        interval => 300,
 #        description => "",
 #    },
-    "reversal short" => {
+    "15min RSI below 30 mad" => {
         args => {
             expression  => "rsi(close,14) < 30 and previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30",
             timeframe => "15min",
@@ -56,7 +56,7 @@ my %signals = (
         interval => 3600,
         description => "RSI gone mad",
     },
-    "reversal long" => {
+    "15min RSI above 70 mad" => {
         args => {
             expression  => "rsi(close,14) > 70 and previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70",
             timeframe => "15min",
@@ -67,7 +67,7 @@ my %signals = (
         interval => 3600,
         description => "RSI gone mad",
     },
-    "bouncing_cat" => {
+    "day ATR double average" => {
         args => {
             #expression  => "day(open > close and tr()>2*atr(14)) and 15minute(rsi(close,14)>60)",
             expression  => "tr()>2*atr(14)",
@@ -79,7 +79,7 @@ my %signals = (
         interval => 7200,
         description => "Range double the average",
     },
-    "strong_USD" => {
+    "USD buy" => {
         args => {
             expression  => "4hour(rsi(close,14) < 42) and 15minute(rsi(close,14) < 38)",
             start_period=> "1 hour ago",
@@ -88,7 +88,7 @@ my %signals = (
         interval => 300,
         description => "Long USD weakness",
     },
-    "daily_retraction long" => {
+    "Long pullback to support" => {
         args => {
             expression  => "min(low,5)%2B0.5*atr(14) > previous(max(close,50),50) and rsi(close,14)<38",
             timeframe   => "day",
@@ -99,7 +99,7 @@ my %signals = (
         interval => 10200,
         description => "Retracement to support long",
     },
-    "daily_retraction short" => {
+    "Short pushup to resistance" => {
         args => {
             expression  => "max(high,5)%2B0.5*atr(14) < previous(min(close,50),50) and rsi(close,14)>62",
             timeframe   => "day",
