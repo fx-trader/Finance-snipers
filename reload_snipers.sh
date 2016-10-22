@@ -6,7 +6,7 @@ set -euo pipefail
 
 SNIPER_DIR=`pwd -P`
 cd $SNIPER_DIR
-git pull origin master
+#git pull origin master
 
 function load_sniper {
     SNIPER_ID=sniper-${SYMBOL}-${DIRECTION}
@@ -25,16 +25,16 @@ function load_sniper {
             -e SYMBOL -e FXCM_SYMBOL \
             -e MAX_EXPOSURE -e EXPOSURE_INCREMENT -e DIRECTION \
             --log-driver=journald \
-            -d fxtrader/scripts sh -c 'exec /usr/bin/perl /root/snipers/fx-sniper.pl'
+            -d fxtrader/finance-hostedtrader sh -c 'exec /usr/bin/perl /root/snipers/fx-sniper.pl'
 }
 
 SYMBOL=EURGBP FXCM_SYMBOL='EUR/GBP' \
 MAX_EXPOSURE=60000 EXPOSURE_INCREMENT=1000 DIRECTION=short \
 load_sniper
 
-#SYMBOL=XAGUSD FXCM_SYMBOL='XAG/USD' \
-#MAX_EXPOSURE=300 EXPOSURE_INCREMENT=50 DIRECTION=long \
-#load_sniper
+SYMBOL=AUDUSD FXCM_SYMBOL='AUD/USD' \
+MAX_EXPOSURE=30000 EXPOSURE_INCREMENT=3000 DIRECTION=short \
+load_sniper
 
 
 #FXCM_USERNAME=GBD118836001 FXCM_PASSWORD='5358' FXCM_ACCOUNT_TYPE=Demo \

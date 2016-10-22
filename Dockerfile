@@ -1,4 +1,4 @@
-FROM fxtrader/scripts
+FROM fxtrader/finance-hostedtrader
 MAINTAINER Joao Costa <joaocosta@zonalivre.org>
 
 RUN cpanm --notest DateTime::Format::Strptime
