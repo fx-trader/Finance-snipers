@@ -1,0 +1,9 @@
+To start a dev container:
+
+docker run --rm --name sniper-dev --link fxdata -h sniper-test.fxhistoricaldata.com -v /root/fxtrader.cfg:/etc/fxtrader -v /root/src/Finance-snipers/bin:/root/snipers -ti fxtrader/finance-hostedtrader bash
+
+Then set all the required environment variables:
+TODO: list variables and sample values
+
+Then inside the container bash shell, run:
+/root/snipers/fx-sniper.pl
