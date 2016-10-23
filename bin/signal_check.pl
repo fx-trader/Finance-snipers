@@ -18,11 +18,6 @@ log4perl.appender.SCREEN         = Log::Log4perl::Appender::Screen
 log4perl.appender.SCREEN.stderr  = 0
 log4perl.appender.SCREEN.layout  = Log::Log4perl::Layout::PatternLayout
 log4perl.appender.SCREEN.layout.ConversionPattern = %d{ISO8601} %m %n
-#log4perl.appender.LOG1 = Log::Log4perl::Appender::File
-#log4perl.appender.LOG1.filename = ./sniper.log
-#log4perl.appender.LOG1.mode = append
-#log4perl.appender.LOG1.layout = Log::Log4perl::Layout::PatternLayout
-#log4perl.appender.LOG1.layout.ConversionPattern = %d{ISO8601} %p %M{2} %m %n
 );
 Log::Log4perl::init(\$log_conf);
 my $logger = Log::Log4perl->get_logger();
