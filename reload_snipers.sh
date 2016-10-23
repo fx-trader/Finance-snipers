@@ -17,7 +17,6 @@ function load_sniper {
     docker run \
             --restart=always \
             --name ${SNIPER_ID} \
-            --link fxdata \
             -h ${SNIPER_ID}.fxhistoricaldata.com \
             -v /root/fxtrader.cfg:/etc/fxtrader \
             -v $SNIPER_DIR/bin:/root/snipers \
