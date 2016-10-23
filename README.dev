@@ -1,9 +1,20 @@
-To start a dev container:
+# Start a dev container:
 
-docker run --rm --name sniper-dev --link fxdata -h sniper-test.fxhistoricaldata.com -v /root/fxtrader.cfg:/etc/fxtrader -v /root/src/Finance-snipers/bin:/root/snipers -ti fxtrader/finance-hostedtrader bash
+    docker run --rm --name sniper-dev --link fxdata -h sniper-test.fxhistoricaldata.com -v /root/fxtrader.cfg:/etc/fxtrader -v /root/src/Finance-snipers/bin:/root/snipers -ti fxtrader/finance-hostedtrader bash
 
-Then set all the required environment variables:
-TODO: list variables and sample values
 
-Then inside the container bash shell, run:
-/root/snipers/fx-sniper.pl
+# Set all the required environment variables, ie:
+
+    export FXCM_USERNAME=GBD118836001
+    export FXCM_PASSWORD=5358
+    export FXCM_ACCOUNT_TYPE=Demo
+    export SYMBOL=EURUSD
+    export FXCM_SYMBOL=EUR/USD
+    export MAX_EXPOSURE=10000
+    export EXPOSURE_INCREMENT=1000
+    export DIRECTION=short
+
+
+# Inside the container bash shell, run:
+
+    /root/snipers/fx-sniper.pl
