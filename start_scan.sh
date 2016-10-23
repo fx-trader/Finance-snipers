@@ -7,6 +7,6 @@ docker run  \
     --name signal-scan \
     -h signal-scan.fxhistoricaldata.com \
     -v $SNIPER_DIR/bin:/root/snipers \
-    --log-driver=journald \
+    --log-driver=json-file \
     -d fxtrader/finance-hostedtrader \
     sh -c 'exec /usr/bin/perl /root/snipers/signal_check.pl'
