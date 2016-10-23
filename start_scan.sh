@@ -1,6 +1,6 @@
 #!/bin/sh
 
-SNIPER_DIR=`pwd -P`
+SNIPER_DIR=/root/src/Finance-snipers
 
 docker run  \
     --restart=always \
