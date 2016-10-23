@@ -23,7 +23,7 @@ function load_sniper {
             -e FXCM_USERNAME -e FXCM_PASSWORD -e FXCM_ACCOUNT_TYPE \
             -e SYMBOL -e FXCM_SYMBOL \
             -e MAX_EXPOSURE -e EXPOSURE_INCREMENT -e DIRECTION \
-            --log-driver=journald \
+            --log-driver=json-file \
             -d fxtrader/finance-hostedtrader sh -c 'exec /usr/bin/perl /root/snipers/fx-sniper.pl'
 }
 
