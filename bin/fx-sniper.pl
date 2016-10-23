@@ -67,12 +67,10 @@ while (1) {
     my $spread = sprintf("%.5f", $ask - $bid);
     $logger->info("SPREAD = $spread");
 
-    # macd2_data not used at the moment, just call it here for the side effect of
-    # macd value over 2hour timeframe being printed in the logs
     my $macd2_data = getIndicatorValue($symbol, '2hour', "macddiff(close, 12, 26, 9)");
-    my $macd4_data = getIndicatorValue($symbol, '4hour', "macddiff(close, 12, 26, 9)");
-    my $rsi_data = getIndicatorValue($symbol, '5min', "rsi(close,14)");
-    my $ema_data = getIndicatorValue($symbol, '5min', "ema(close,200)");
+#    my $macd4_data = getIndicatorValue($symbol, '4hour', "macddiff(close, 12, 26, 9)");
+    my $rsi_data = getIndicatorValue($symbol, '15min', "rsi(close,14)");
+#    my $ema_data = getIndicatorValue($symbol, '5min', "ema(close,200)");
 
     my $symbol_trades = $fxcm->getTradesForSymbol($fxcm_symbol);
     my $symbol_exposure = sum0 map { $_->{size} }  @$symbol_trades;
@@ -98,21 +96,22 @@ while (1) {
     my $atr_data = getIndicatorValue($symbol, '4hour', "atr(14)");
     if ($direction eq 'long') {
         my $pivot_data = getIndicatorValue($symbol, '4hour', 'max(close,14)');
-        my $rsi_trigger = 35;
+        my $rsi_trigger = 38;
         $multiplier = ($pivot_data->[1] - $ask ) / $atr_data->[1];
+        $logger->info("Multiplier = $multiplier");
         $logger->info("Set RSI trigger at $rsi_trigger");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
-        $logger->info("Skip macd") and next if ($macd4_data->[1] >= 0);
+        $logger->info("Skip macd") and next if ($macd2_data->[1] >= 0);
     } else {
         my $pivot_data = getIndicatorValue($symbol, '4hour', 'min(close,14)');
-        my $rsi_trigger = 65;
+        my $rsi_trigger = 62;
         $multiplier = ($bid - $pivot_data->[1]) / $atr_data->[1];
+        $logger->info("Multiplier = $multiplier");
         $logger->info("Set RSI trigger at $rsi_trigger");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] <= $rsi_trigger);
-        $logger->info("Skip macd") and next if ($macd4_data->[1] <= 0);
+        $logger->info("Skip macd") and next if ($macd2_data->[1] <= 0);
     }
 
-    $logger->info("Multiplier = $multiplier");
     my $adjusted_exposure_increment = int($exposure_increment * abs($multiplier) / $min_trade_size) * $min_trade_size;
     $logger->info("Adjusted incremental position size = $adjusted_exposure_increment");
 
@@ -150,20 +149,27 @@ sub getIndicatorValue {
     my $tf = shift;
     my $indicator = shift;
 
-    my $signal_processor = Finance::HostedTrader::ExpressionParser->new(); # This object knows how to calculate technical indicators
-    my $data = $signal_processor->getIndicatorData( {
-            'fields'          => "datetime,$indicator",
-            'symbol'          => $symbol,
-            'tf'              => $tf,
-            'maxLoadedItems'  => 50000,
-            'numItems' => 1,
-        });
 
-    $signal_processor = undef;
-    $logger->logdie("Failed to retrieve indicator '$indicator'") if (!$data || !$data->{data} || !$data->{data}->[0]);
-    $logger->info("$indicator [$data->{data}->[0]->[0]] ($tf) = $data->{data}->[0]->[1]");
+    use LWP::UserAgent;
+    use JSON::MaybeXS;
 
-    return $data->{data}->[0];
+    my $ua = LWP::UserAgent->new();
+    my $url = "http://api.fxhistoricaldata.com/v1/indicators?instruments=$symbol&expression=$indicator&item_count=1&timeframe=$tf";
+    my $response = $ua->get($url);
+
+    my $decoded_content = $response->decoded_content;
+
+    if (!$response->is_success()) {
+        $logger->logdie("$url\n".$response->status_line."\n" . $decoded_content);
+    }
+
+    my $json_response = decode_json($decoded_content) || $logger->logdie("Could not decode json response for $url\n$decoded_content");
+    my $data = $json_response->{results}{$symbol}{data} || $logger->logdie("json response for $url does not have expected structure\n$decoded_content");
+
+    $logger->logdie("Failed to retrieve indicator '$indicator'") if (!$data || !$data->[0]);
+    $logger->info("$indicator [$data->[0]->[0]] ($tf) = $data->[0]->[1]");
+
+    return $data->[0];
 }
 
 sub convertToEpoch {
