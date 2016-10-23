@@ -55,7 +55,6 @@ $logger->info("SYMBOL = $symbol");
 $logger->info("INTERVAL = $check_interval seconds");
 
 while (1) {
-    my $fxcm = Finance::FXCM::Simple->new($ENV{FXCM_USERNAME}, $ENV{FXCM_PASSWORD}, $ENV{FXCM_ACCOUNT_TYPE}, 'http://www.fxcorporate.com/Hosts.jsp');
     #last if ( -f "/tmp/snipers_disengage" );
     if (time() > $time_limit) {
         $logger->info("Exiting to allow memory cleanup");
@@ -66,6 +65,7 @@ while (1) {
 
     $logger->info("--------------------");
 
+    my $fxcm = Finance::FXCM::Simple->new($ENV{FXCM_USERNAME}, $ENV{FXCM_PASSWORD}, $ENV{FXCM_ACCOUNT_TYPE}, 'http://www.fxcorporate.com/Hosts.jsp');
     my $bid = $fxcm->getBid($fxcm_symbol); # The price I can sell at
     my $ask = $fxcm->getAsk($fxcm_symbol); # The price I can buy at
     $logger->info("BID = $bid");
