@@ -39,7 +39,7 @@ my $symbol = $ENV{SYMBOL} || $logger->logdie("SYMBOL NOT DEFINED");          # T
 my $fxcm_symbol = $ENV{FXCM_SYMBOL} || $logger->logdie("FXCM_SYMBOL NOT DEFINED");    # Finance::FXCM::Simple only knows about FXCM symbols which have a different format than Finance::HostedTrader symbols
 my $max_exposure = $ENV{MAX_EXPOSURE} || $logger->logdie("MAX_EXPOSURE NOT DEFINED");       # Maximum amount I'm willing to buy/sell in $symbol
 my $exposure_increment = $ENV{EXPOSURE_INCREMENT} || $logger->logdie("EXPOSURE_INCREMENT NOT DEFINED");  # How much more do I want to buy each time
-my $check_interval = 30;        # How many seconds to wait for before checking again if it's time to buy
+my $check_interval = 60;        # How many seconds to wait for before checking again if it's time to buy
 my $direction = $ENV{DIRECTION} || $logger->logdie("DIRECTION NOT DEFINED");
 $logger->logdie("DIRECTION has to be either 'long' or 'short'") unless ($direction eq 'long' or $direction eq 'short');
 
