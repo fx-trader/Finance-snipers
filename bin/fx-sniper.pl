@@ -9,7 +9,6 @@ $|=1;
 use Log::Log4perl;
 use List::Util qw(sum0);
 
-use Finance::HostedTrader::ExpressionParser;
 use Finance::FXCM::Simple;
 
 my $time_limit = time() + 1320; #Force a restart after 1320 seconds, to cleanup memory usage
