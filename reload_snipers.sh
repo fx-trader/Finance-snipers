@@ -4,7 +4,7 @@ set -euo pipefail
 
 . ~/fxcm.real
 
-SNIPER_DIR=`pwd -P`
+SNIPER_DIR=/root/src/Finance-snipers
 cd $SNIPER_DIR
 #git pull origin master
 
