@@ -42,6 +42,13 @@ my $check_interval = 60;        # How many seconds to wait for before checking a
 my $direction = $ENV{DIRECTION} || $logger->logdie("DIRECTION NOT DEFINED");
 $logger->logdie("DIRECTION has to be either 'long' or 'short'") unless ($direction eq 'long' or $direction eq 'short');
 
+
+{
+    my $initial_delay = int(rand(30));
+    $logger->info("Initial random delay of $initial_delay seconds");
+    sleep($initial_delay);
+}
+
 $logger->info("Sniper reporting for duty");
 $logger->info("ACCOUNT ID = $ENV{FXCM_USERNAME} ($ENV{FXCM_ACCOUNT_TYPE})");
 $logger->info("SYMBOL = $symbol");
