@@ -27,12 +27,8 @@ function load_sniper {
             -d fxtrader/finance-hostedtrader sh -c 'exec /usr/bin/perl /root/snipers/fx-sniper.pl'
 }
 
-#SYMBOL=EURGBP FXCM_SYMBOL='EUR/GBP' \
-#MAX_EXPOSURE=10000 EXPOSURE_INCREMENT=5000 DIRECTION=short \
-#load_sniper
-
 SYMBOL=EURUSD FXCM_SYMBOL='EUR/USD' \
-MAX_EXPOSURE=15000 EXPOSURE_INCREMENT=8000 DIRECTION=short \
+MAX_EXPOSURE=30000 EXPOSURE_INCREMENT=7000 DIRECTION=short \
 load_sniper
 
 #FXCM_USERNAME=GBD118836001 FXCM_PASSWORD='5358' FXCM_ACCOUNT_TYPE=Demo \
