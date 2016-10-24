@@ -114,7 +114,7 @@ while (1) {
         $logger->info("Skip macd") and next if ($macd2_data->[1] <= 0);
     }
 
-    $multipler = 3 if ($multiplier > 3);
+    $multiplier = 3 if ($multiplier > 3);
     my $adjusted_exposure_increment = int($exposure_increment * $multiplier / $min_trade_size) * $min_trade_size;
     $logger->info("Adjusted incremental position size = $adjusted_exposure_increment");
 
