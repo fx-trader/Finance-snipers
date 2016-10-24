@@ -73,7 +73,7 @@ while (1) {
     my $symbol_exposure = sum0 map { $_->{size} }  @$symbol_trades;
     $logger->info("$symbol exposure = $symbol_exposure");
 
-    $logger->info("Skip exposure") and next if ( $max_exposure < $symbol_exposure );
+    $logger->info("Skip exposure") and next if ( $max_exposure <= $symbol_exposure );
 
     my @trades = sort { $b->{openDate} cmp $a->{openDate} } grep { $_->{direction} eq $direction } @{ $symbol_trades || [] };
 
