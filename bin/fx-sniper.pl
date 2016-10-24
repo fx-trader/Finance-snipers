@@ -69,14 +69,11 @@ while (1) {
     my $spread = sprintf("%.5f", $ask - $bid);
     $logger->info("SPREAD = $spread");
 
-    my $macd2_data = getIndicatorValue($symbol, '2hour', "macddiff(close, 12, 26, 9)");
-#    my $macd4_data = getIndicatorValue($symbol, '4hour', "macddiff(close, 12, 26, 9)");
-    my $rsi_data = getIndicatorValue($symbol, '15min', "rsi(close,14)");
-#    my $ema_data = getIndicatorValue($symbol, '5min', "ema(close,200)");
-
     my $symbol_trades = $fxcm->getTradesForSymbol($fxcm_symbol);
     my $symbol_exposure = sum0 map { $_->{size} }  @$symbol_trades;
     $logger->info("$symbol exposure = $symbol_exposure");
+
+    $logger->info("Skip exposure") and next if ( $max_exposure < $symbol_exposure );
 
     my @trades = sort { $b->{openDate} cmp $a->{openDate} } grep { $_->{direction} eq $direction } @{ $symbol_trades || [] };
 
@@ -95,19 +92,19 @@ while (1) {
     }
 
     my $multiplier;
-    my $atr_data = getIndicatorValue($symbol, '4hour', "atr(14)");
+    my $macd2_data = getIndicatorValue($symbol, '2hour', "macddiff(close, 12, 26, 9)");
+    my $pivot_data = getIndicatorValue($symbol, '4hour', "atr(14), max(close,14), min(close,14)");
+    my $rsi_data = getIndicatorValue($symbol, '15min', "rsi(close,14)");
     if ($direction eq 'long') {
-        my $pivot_data = getIndicatorValue($symbol, '4hour', 'max(close,14)');
         my $rsi_trigger = 38;
-        $multiplier = ($pivot_data->[1] - $ask ) / $atr_data->[1];
+        $multiplier = ($pivot_data->[2] - $ask ) / $pivot_data->[1];
         $logger->info("Multiplier = $multiplier");
         $logger->info("Set RSI trigger at $rsi_trigger");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
         $logger->info("Skip macd") and next if ($macd2_data->[1] >= 0);
     } else {
-        my $pivot_data = getIndicatorValue($symbol, '4hour', 'min(close,14)');
         my $rsi_trigger = 62;
-        $multiplier = ($bid - $pivot_data->[1]) / $atr_data->[1];
+        $multiplier = ($bid - $pivot_data->[3]) / $pivot_data->[1];
         $logger->info("Multiplier = $multiplier");
         $logger->info("Set RSI trigger at $rsi_trigger");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] <= $rsi_trigger);
@@ -118,9 +115,7 @@ while (1) {
     my $adjusted_exposure_increment = int($exposure_increment * $multiplier / $min_trade_size) * $min_trade_size;
     $logger->info("Adjusted incremental position size = $adjusted_exposure_increment");
 
-    $logger->info("Skip multiplier < 0.4") and next if ( $multiplier < 0.4);
-
-    $logger->info("Skip exposure") and next if ( $max_exposure < $symbol_exposure );
+    $logger->info("Skip multiplier < 0.7") and next if ( $multiplier < 0.7);
 
     my $open_position_size = ($symbol_exposure + $adjusted_exposure_increment > $max_exposure ? $max_exposure - $symbol_exposure : $adjusted_exposure_increment );
     $logger->info("Add position to $symbol ($open_position_size)");
