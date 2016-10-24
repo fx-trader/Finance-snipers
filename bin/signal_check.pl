@@ -44,22 +44,22 @@ my %signals = (
         args => {
             expression  => "rsi(close,14) < 30 and previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30",
             timeframe => "15min",
-            start_period=> "1 hour ago",
+            start_period=> "2 hour ago",
             instruments => $all_instruments,
             item_count  => 1,
         },
-        interval => 3600,
+        interval => 5400,
         description => "RSI gone mad",
     },
     "15min RSI above 70 mad" => {
         args => {
             expression  => "rsi(close,14) > 70 and previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70",
             timeframe => "15min",
-            start_period=> "1 hour ago",
+            start_period=> "2 hour ago",
             instruments => $all_instruments,
             item_count  => 1,
         },
-        interval => 3600,
+        interval => 5400,
         description => "RSI gone mad",
     },
     "day ATR double average" => {
@@ -67,7 +67,7 @@ my %signals = (
             #expression  => "day(open > close and tr()>2*atr(14)) and 15minute(rsi(close,14)>60)",
             expression  => "tr()>2*atr(14)",
             timeframe => "day",
-            start_period=> "1 hour ago",
+            start_period=> "4 hour ago",
             instruments => $all_instruments,
             item_count  => 1,
         },
@@ -77,17 +77,17 @@ my %signals = (
     "USD buy" => {
         args => {
             expression  => "4hour(rsi(close,14) < 42) and 15minute(rsi(close,14) < 38)",
-            start_period=> "1 hour ago",
+            start_period=> "2 hour ago",
             instruments => "USDOLLAR",
         },
-        interval => 300,
+        interval => 600,
         description => "Long USD weakness",
     },
     "Long pullback to support" => {
         args => {
             expression  => "min(low,5)%2B0.5*atr(14) > previous(max(close,50),50) and rsi(close,14)<38",
             timeframe   => "day",
-            start_period=> "1 hour ago",
+            start_period=> "6 hour ago",
             max_loaded_items => 50000,
             instruments => $all_instruments,
         },
@@ -98,7 +98,7 @@ my %signals = (
         args => {
             expression  => "max(high,5)%2B0.5*atr(14) < previous(min(close,50),50) and rsi(close,14)>62",
             timeframe   => "day",
-            start_period=> "1 hour ago",
+            start_period=> "6 hour ago",
             max_loaded_items => 50000,
             instruments => $all_instruments,
         },
