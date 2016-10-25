@@ -170,7 +170,9 @@ sub getIndicatorValue {
     my $data = $json_response->{results}{$symbol}{data} || $logger->logconfess("json response for $url does not have expected structure\n$decoded_content");
 
     $logger->logconfess("Failed to retrieve indicator '$indicator'") if (!$data || !$data->[0]);
-    $logger->info("$indicator [$data->[0]->[0]] ($tf) = $data->[0]->[1]");
+    foreach my $value (@{ $data->[0] }) {
+        $logger->info("$indicator [$data->[0]->[0]] ($tf) = $value");
+    }
 
     return $data->[0];
 }
