@@ -65,7 +65,7 @@ while (1) {
     eval {
         $fxcm = Finance::FXCM::Simple->new($ENV{FXCM_USERNAME}, $ENV{FXCM_PASSWORD}, $ENV{FXCM_ACCOUNT_TYPE}, 'http://www.fxcorporate.com/Hosts.jsp');
         1;
-    } or $logger->die("Failed to login to fxcm account: $@");
+    } or $logger->logdie("Failed to login to fxcm account: $@");
 
     my $bid = $fxcm->getBid($fxcm_symbol); # The price I can sell at
     my $ask = $fxcm->getAsk($fxcm_symbol); # The price I can buy at
