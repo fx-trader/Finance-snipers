@@ -171,7 +171,7 @@ sub getIndicatorValue {
 
     $logger->logconfess("Failed to retrieve indicator '$indicator'") if (!$data || !$data->[0]);
     foreach my $value (@{ $data->[0] }) {
-        $logger->info("$indicator [$data->[0]->[0]] ($tf) = $value");
+        $logger->info("$indicator ($tf) = $value");
     }
 
     return $data->[0];
