@@ -61,7 +61,12 @@ while (1) {
 
     $logger->info("--------------------");
 
-    my $fxcm = Finance::FXCM::Simple->new($ENV{FXCM_USERNAME}, $ENV{FXCM_PASSWORD}, $ENV{FXCM_ACCOUNT_TYPE}, 'http://www.fxcorporate.com/Hosts.jsp');
+    my $fxcm;
+    eval {
+        $fxcm = Finance::FXCM::Simple->new($ENV{FXCM_USERNAME}, $ENV{FXCM_PASSWORD}, $ENV{FXCM_ACCOUNT_TYPE}, 'http://www.fxcorporate.com/Hosts.jsp');
+        1;
+    } or $logger->die("Failed to login to fxcm account: $@");
+
     my $bid = $fxcm->getBid($fxcm_symbol); # The price I can sell at
     my $ask = $fxcm->getAsk($fxcm_symbol); # The price I can buy at
     $logger->info("BID = $bid");
@@ -158,13 +163,13 @@ sub getIndicatorValue {
     my $decoded_content = $response->decoded_content;
 
     if (!$response->is_success()) {
-        $logger->logdie("$url\n".$response->status_line."\n" . $decoded_content);
+        $logger->logconfess("$url\n".$response->status_line."\n" . $decoded_content);
     }
 
-    my $json_response = decode_json($decoded_content) || $logger->logdie("Could not decode json response for $url\n$decoded_content");
-    my $data = $json_response->{results}{$symbol}{data} || $logger->logdie("json response for $url does not have expected structure\n$decoded_content");
+    my $json_response = decode_json($decoded_content) || $logger->logconfess("Could not decode json response for $url\n$decoded_content");
+    my $data = $json_response->{results}{$symbol}{data} || $logger->logconfess("json response for $url does not have expected structure\n$decoded_content");
 
-    $logger->logdie("Failed to retrieve indicator '$indicator'") if (!$data || !$data->[0]);
+    $logger->logconfess("Failed to retrieve indicator '$indicator'") if (!$data || !$data->[0]);
     $logger->info("$indicator [$data->[0]->[0]] ($tf) = $data->[0]->[1]");
 
     return $data->[0];
