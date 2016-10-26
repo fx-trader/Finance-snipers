@@ -100,18 +100,16 @@ while (1) {
     my $macd2_data = getIndicatorValue($symbol, '2hour', "macddiff(close, 12, 26, 9)");
     my $pivot_data = getIndicatorValue($symbol, '4hour', "atr(14), max(close,14), min(close,14)");
     my $rsi_data = getIndicatorValue($symbol, '15min', "rsi(close,14)");
+    my $rsi_trigger = getRSITriggerValue($symbol, $direction);
+    $logger->info("Set RSI trigger at $rsi_trigger");
     if ($direction eq 'long') {
-        my $rsi_trigger = 38;
         $multiplier = ($pivot_data->[2] - $ask ) / $pivot_data->[1];
         $logger->info("Multiplier = $multiplier");
-        $logger->info("Set RSI trigger at $rsi_trigger");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
         $logger->info("Skip macd") and next if ($macd2_data->[1] >= 0);
     } else {
-        my $rsi_trigger = 62;
         $multiplier = ($bid - $pivot_data->[3]) / $pivot_data->[1];
         $logger->info("Multiplier = $multiplier");
-        $logger->info("Set RSI trigger at $rsi_trigger");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] <= $rsi_trigger);
         $logger->info("Skip macd") and next if ($macd2_data->[1] <= 0);
     }
@@ -147,6 +145,28 @@ sub HOSTED_TRADER_2_FXCM_DIRECTION {
     $logger->logconfess("Invalid direction value '$direction'");
 }
 
+
+sub getRSITriggerValue {
+    my ($symbol, $direction) = @_;
+
+    if ($direction eq 'long') {
+        my $last_signal = getSignalValue($symbol, "15min", "rsi(close,14) < 30 and previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30");
+        return 38 if (!$last_signal);
+        my $seconds_ago = time() - convertToEpoch($last_signal);
+        $logger->info("rsi mad under 30 last seen $seconds_ago seconds ago");
+        return ($seconds_ago < 4 * 60 * 60) ? 30 : 38; #4*60*60 = 4hours in seconds
+    } elsif ($direction eq 'short') {
+        my $last_signal = getSignalValue($symbol, "15min", "rsi(close,14) > 70 and previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70");
+        return 62 if (!$last_signal);
+        my $seconds_ago = time() - convertToEpoch($last_signal);
+        $logger->info("rsi mad over 70 last seen $seconds_ago seconds ago");
+        return ($seconds_ago < 4 * 60 * 60) ? 70 : 62; #4*60*60 = 4hours in seconds
+    } else {
+        $logger->logconfess("Invalid value for direction parameter ('$direction')");
+    }
+
+}
+
 sub getIndicatorValue {
     my $symbol = shift;
     my $tf = shift;
@@ -175,6 +195,35 @@ sub getIndicatorValue {
     }
 
     return $data->[0];
+}
+
+sub getSignalValue {
+    my $symbol = shift;
+    my $tf = shift;
+    my $signal = shift;
+
+
+    use LWP::UserAgent;
+    use JSON::MaybeXS;
+
+    my $ua = LWP::UserAgent->new();
+    my $url = "http://api.fxhistoricaldata.com/v1/signals?instruments=$symbol&expression=$signal&item_count=1&timeframe=$tf";
+    my $response = $ua->get($url);
+
+    my $decoded_content = $response->decoded_content;
+
+    if (!$response->is_success()) {
+        $logger->logconfess("$url\n".$response->status_line."\n" . $decoded_content);
+    }
+
+    my $json_response = decode_json($decoded_content) || $logger->logconfess("Could not decode json response for $url\n$decoded_content");
+    my $data = $json_response->{results}{$symbol}{data} || $logger->logconfess("json response for $url does not have expected structure\n$decoded_content");
+
+    $logger->logconfess("Failed to retrieve indicator '$signal'") if (!$data);
+    $logger->info("$signal ($tf) = " . (defined($data->[0]) ? $data->[0] : 'null'));
+
+    return $data->[0] if (defined($data->[0]));
+    return undef;
 }
 
 sub convertToEpoch {
