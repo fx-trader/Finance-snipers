@@ -154,13 +154,13 @@ sub getRSITriggerValue {
         return 38 if (!$last_signal);
         my $seconds_ago = time() - convertToEpoch($last_signal);
         $logger->info("rsi mad under 30 last seen $seconds_ago seconds ago");
-        return ($seconds_ago < 4 * 60 * 60) ? 30 : 38; #4*60*60 = 4hours in seconds
+        return ($seconds_ago < 12 * 60 * 60) ? 30 : 38; #12*60*60 = 12hours in seconds
     } elsif ($direction eq 'short') {
         my $last_signal = getSignalValue($symbol, "15min", "rsi(close,14) > 70 and previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70");
         return 62 if (!$last_signal);
         my $seconds_ago = time() - convertToEpoch($last_signal);
         $logger->info("rsi mad over 70 last seen $seconds_ago seconds ago");
-        return ($seconds_ago < 4 * 60 * 60) ? 70 : 62; #4*60*60 = 4hours in seconds
+        return ($seconds_ago < 12 * 60 * 60) ? 70 : 62; #12*60*60 = 12hours in seconds
     } else {
         $logger->logconfess("Invalid value for direction parameter ('$direction')");
     }
