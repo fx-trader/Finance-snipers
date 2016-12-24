@@ -97,7 +97,7 @@ while (1) {
     }
 
     my $multiplier;
-    my $macd2_data = getIndicatorValue($symbol, '2hour', "macddiff(close, 12, 26, 9)");
+#    my $macd2_data = getIndicatorValue($symbol, '4hour', "macddiff(close, 12, 26, 9)");
     my $pivot_data = getIndicatorValue($symbol, '4hour', "atr(14), max(close,14), min(close,14)");
     my $rsi_data = getIndicatorValue($symbol, '15min', "rsi(close,14)");
     my $rsi_trigger = getRSITriggerValue($symbol, $direction);
@@ -106,12 +106,12 @@ while (1) {
         $multiplier = ($pivot_data->[2] - $ask ) / $pivot_data->[1];
         $logger->info("Multiplier = $multiplier");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
-        $logger->info("Skip macd") and next if ($macd2_data->[1] >= 0);
+#        $logger->info("Skip macd") and next if ($macd2_data->[1] >= 0);
     } else {
         $multiplier = ($bid - $pivot_data->[3]) / $pivot_data->[1];
         $logger->info("Multiplier = $multiplier");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] <= $rsi_trigger);
-        $logger->info("Skip macd") and next if ($macd2_data->[1] <= 0);
+#        $logger->info("Skip macd") and next if ($macd2_data->[1] <= 0);
     }
 
     $multiplier = 3 if ($multiplier > 3);

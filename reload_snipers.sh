@@ -27,10 +27,6 @@ function load_sniper {
             -d fxtrader/finance-hostedtrader sh -c 'exec /usr/bin/perl /root/snipers/fx-sniper.pl'
 }
 
-SYMBOL=EURUSD FXCM_SYMBOL='EUR/USD' \
-MAX_EXPOSURE=30000 EXPOSURE_INCREMENT=11000 DIRECTION=short \
-load_sniper
-
 SYMBOL=USDOLLAR FXCM_SYMBOL='USDOLLAR' \
 MAX_EXPOSURE=5 EXPOSURE_INCREMENT=1 DIRECTION=long \
 load_sniper
