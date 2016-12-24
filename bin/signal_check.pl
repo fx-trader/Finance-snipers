@@ -12,7 +12,7 @@ use JSON::MaybeXS;
 use Data::Dumper;
 
 my $log_conf = q(
-log4perl rootLogger = INFO, SCREEN
+log4perl rootLogger = DEBUG, SCREEN
 #log4perl rootLogger = DEBUG, LOG1, SCREEN
 log4perl.appender.SCREEN         = Log::Log4perl::Appender::Screen
 log4perl.appender.SCREEN.stderr  = 0
