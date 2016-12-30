@@ -10,6 +10,7 @@ use LWP::Simple;
 use LWP::UserAgent;
 use JSON::MaybeXS;
 use Data::Dumper;
+use Redis;
 
 my $log_conf = q(
 log4perl rootLogger = DEBUG, SCREEN
@@ -29,8 +30,8 @@ my $api_base = "http://api.fxhistoricaldata.com/v1";
 
 #my $all_instruments = join(",", @{ get_all_instruments() });
 my $all_instruments = "AUDUSD,AUDJPY,AUDNZD,CHFJPY,EURCAD,EURCHF,EURGBP,EURJPY,EURUSD,GBPCHF,GBPJPY,GBPNZD,GBPUSD,NZDUSD,NZDJPY,USDCAD,USDCHF,USDHKD,USDJPY,XAUUSD,XAGUSD,AUS200,ESP35,FRA40,GER30,HKG33,JPN225,NAS100,SPX500,UK100,UKOil,US30,USOil,USDOLLAR,Bund";
-my %signals = (
-    "trend_reverse" => {
+my @signals = (
+    {   name => "trend_reverse",
         args => {
             expression  => "day(min(rsi(close,14),15)<35 and min(close,20) <= min(close,100)) and 4hour(crossoverup(ema(close,20),ema(close,200)))",
             start_period=> "4 hours ago",
@@ -38,10 +39,10 @@ my %signals = (
             instruments => $all_instruments,
             item_count  => 1,
         },
-        interval => 7200,
+        signal_check_interval => 7200,
         description => "",
     },
-#    "15min RSI below 30 mad" => {
+#    {   name => "15min RSI below 30 mad",
 #        args => {
 #            expression  => "rsi(close,14) < 30 and previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30",
 #            timeframe => "15min",
@@ -49,10 +50,10 @@ my %signals = (
 #            instruments => $all_instruments,
 #            item_count  => 1,
 #        },
-#        interval => 5400,
+#        signal_check_interval => 5400,
 #        description => "RSI gone mad",
 #    },
-#    "15min RSI above 70 mad" => {
+#    {   name => "15min RSI above 70 mad",
 #        args => {
 #            expression  => "rsi(close,14) > 70 and previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70",
 #            timeframe => "15min",
@@ -60,10 +61,10 @@ my %signals = (
 #            instruments => $all_instruments,
 #            item_count  => 1,
 #        },
-#        interval => 5400,
+#        signal_check_interval => 5400,
 #        description => "RSI gone mad",
 #    },
-    "day ATR double average" => {
+    {   name => "day ATR double average",
         args => {
             #expression  => "day(open > close and tr()>2*atr(14)) and 15minute(rsi(close,14)>60)",
             expression  => "tr()>2*atr(14)",
@@ -72,28 +73,28 @@ my %signals = (
             instruments => $all_instruments,
             item_count  => 1,
         },
-        interval => 7200,
+        signal_check_interval => 7200,
         description => "Range double the average",
     },
-    "USD buy" => {
+    {   name => "USD buy",
         args => {
             expression  => "4hour(rsi(close,14) < 42) and 15minute(rsi(close,14) < 38)",
             start_period=> "2 hour ago",
             instruments => "USDOLLAR",
         },
-        interval => 600,
+        signal_check_interval => 600,
         description => "Long USD weakness",
     },
-    "XAU buy" => {
+    {   name => "XAU buy",
         args => {
             expression  => "15minute(rsi(close,14) < 38)",
             start_period=> "2 hour ago",
             instruments => "XAUUSD",
         },
-        interval => 600,
+        signal_check_interval => 600,
         description => "Short term XAU oversold",
     },
-    "Long pullback to support" => {
+    {   name => "Long pullback to support",
         args => {
             expression  => "min(low,5)%2B0.5*atr(14) > previous(max(close,50),50) and rsi(close,14)<38",
             timeframe   => "day",
@@ -101,10 +102,10 @@ my %signals = (
             max_loaded_items => 50000,
             instruments => $all_instruments,
         },
-        interval => 10200,
+        signal_check_interval => 10200,
         description => "Retracement to support long",
     },
-    "Short pushup to resistance" => {
+    {   name => "Short pushup to resistance",
         args => {
             expression  => "max(high,5)%2B0.5*atr(14) < previous(min(close,50),50) and rsi(close,14)>62",
             timeframe   => "day",
@@ -112,32 +113,20 @@ my %signals = (
             max_loaded_items => 50000,
             instruments => $all_instruments,
         },
-        interval => 10200,
+        signal_check_interval => 10200,
         description => "Retracement to support short",
     },
 
 );
 
-my %lastSignalCheck = map { $_ => 0 } keys %signals;
-my %lastSignalTrigger = map { $_ => 0 } keys %signals;
+my %lastSignalCheck;
+my %lastSignalTrigger;
+my $redis = Redis->new( server => 'signal-scan-redis:6379' );
 
 while (1) {
-    foreach my $signal_name (keys %signals) {
-        my $signal = $signals{$signal_name};
-
+    foreach my $signal (@signals) {
+        my $signal_name = $signal->{name};
         $logger->debug("$signal_name: begin");
-        my $signal_interval = $signal->{interval} || $logger->logdie("No interval defined for signal $signal_name");
-        my $trigger_minimum_interval = $signal->{trigger_minimum_interval} || 14400;
-        my $triggered_seconds_ago = time() - $lastSignalTrigger{$signal_name};
-        if ( $triggered_seconds_ago < $trigger_minimum_interval ) {
-            $logger->debug("$signal_name: Skipping, already triggered $triggered_seconds_ago seconds ago, minimum_interval is $trigger_minimum_interval");
-            next;
-        }
-        my $signal_check_in = $lastSignalCheck{$signal_name} + $signal_interval - time();
-        if ( $signal_check_in > 0 ) {
-            $logger->debug("$signal_name: due in $signal_check_in seconds");
-            next;
-        }
         my $results = get_signal($signal);
         if ($results) {
             $logger->info("$signal_name: TRIGGER ALERT $results");
@@ -146,15 +135,20 @@ while (1) {
         } else {
             $logger->debug("$signal_name: No trigger");
         }
-        $lastSignalCheck{$signal_name} = time();
     }
 
     $logger->info("Sleeping");
     sleep(30);
 }
 
+## NOTE: These methods all take a $signal as an argument
+## TODO: Refactor into a Signal class
 sub get_signal {
     my $signal = shift;
+    my $signal_name = $signal->{name};
+
+    return unless (_wants_trigger($signal, $signal_name));
+    return unless (_wants_signal_check($signal, $signal_name));
 
     my $args = $signal->{args};
 
@@ -171,8 +165,41 @@ sub get_signal {
             $results .= "$instrument\t$result->{$instrument}->{data}->[0]\n";
         }
     }
+    $lastSignalCheck{$signal_name} = time();
     return $results;
 }
+
+# When a signal is triggered, we don't want to send the same alert multiple sequential times
+# Hence a minimum trigger interval is set, and triggers won't fire unless X seconds have elapsed since the
+# last trigger.
+# Returns true if we want to send a trigger, or false if we don't want to send a trigger because one has already been sent and trigger_minimum_interval has not elapsed.
+sub _wants_trigger {
+    my $signal = shift;
+    my $signal_name = $signal->{name};
+
+    return 1 if (!$lastSignalTrigger{$signal_name});
+    my $trigger_minimum_interval = $signal->{trigger_minimum_interval} || 14400;
+    my $triggered_seconds_ago = time() - $lastSignalTrigger{$signal_name};
+
+    $logger->debug("$signal_name: triggered $triggered_seconds_ago seconds ago, minimum_interval is $trigger_minimum_interval");
+    return ( $triggered_seconds_ago >= $trigger_minimum_interval );
+}
+
+# Signal checking is a computationally expensive operation
+# To minimize cost, we only compute a signal if at least X seconds have elapsed since the last computation
+# Returns true if we want to compute a signal, or false if the signal has been computed and signal_check_interval has not elapsed.
+sub _wants_signal_check {
+    my $signal = shift;
+    my $signal_name = $signal->{name};
+
+    return 1 if (!$lastSignalCheck{$signal_name});
+    my $signal_interval = $signal->{signal_check_interval} || $logger->logdie("No interval defined for signal $signal_name");
+    my $signal_check_in = $lastSignalCheck{$signal_name} + $signal_interval - time();
+
+    $logger->debug("$signal_name: due in $signal_check_in seconds");
+    return ( $signal_check_in <= 0);
+}
+## END TODO REFACTOR INTO CLASS
 
 sub get_all_instruments {
     return get_endpoint_result("$api_base/instruments");
