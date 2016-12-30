@@ -119,6 +119,7 @@ my %signals = (
 );
 
 my %lastSignalCheck = map { $_ => 0 } keys %signals;
+my %lastSignalTrigger = map { $_ => 0 } keys %signals;
 
 while (1) {
     foreach my $signal_name (keys %signals) {
@@ -126,6 +127,12 @@ while (1) {
 
         $logger->debug("$signal_name: begin");
         my $signal_interval = $signal->{interval} || $logger->logdie("No interval defined for signal $signal_name");
+        my $trigger_minimum_interval = $signal->{trigger_minimum_interval} || 14400;
+        my $triggered_seconds_ago = time() - $lastSignalTrigger{$signal_name};
+        if ( $triggered_seconds_ago < $trigger_minimum_interval ) {
+            $logger->debug("$signal_name: Skipping, already triggered $triggered_seconds_ago seconds ago, minimum_interval is $trigger_minimum_interval");
+            next;
+        }
         my $signal_check_in = $lastSignalCheck{$signal_name} + $signal_interval - time();
         if ( $signal_check_in > 0 ) {
             $logger->debug("$signal_name: due in $signal_check_in seconds");
@@ -135,6 +142,7 @@ while (1) {
         if ($results) {
             $logger->info("$signal_name: TRIGGER ALERT $results");
             zap( { subject => "fx-signal-check: $signal_name", message => $results } );
+            $lastSignalTrigger{$signal_name} = time();
         } else {
             $logger->debug("$signal_name: No trigger");
         }
