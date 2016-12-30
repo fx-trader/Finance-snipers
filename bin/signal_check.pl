@@ -91,7 +91,7 @@ my %signals = (
             instruments => "XAUUSD",
         },
         interval => 600,
-        description => "Long USD weakness",
+        description => "Short term XAU oversold",
     },
     "Long pullback to support" => {
         args => {
