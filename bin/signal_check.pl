@@ -84,6 +84,15 @@ my %signals = (
         interval => 600,
         description => "Long USD weakness",
     },
+    "XAU buy" => {
+        args => {
+            expression  => "15minute(rsi(close,14) < 38)",
+            start_period=> "2 hour ago",
+            instruments => "XAUUSD",
+        },
+        interval => 600,
+        description => "Long USD weakness",
+    },
     "Long pullback to support" => {
         args => {
             expression  => "min(low,5)%2B0.5*atr(14) > previous(max(close,50),50) and rsi(close,14)<38",
