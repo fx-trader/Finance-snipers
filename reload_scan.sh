@@ -2,6 +2,7 @@
 
 SNIPER_DIR=/root/src/Finance-snipers
 
+docker rm -f signal-scan 2> /dev/null || true
 docker run  \
     --restart=always \
     --name signal-scan \
