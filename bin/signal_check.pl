@@ -119,22 +119,13 @@ my @signals = (
 
 );
 
-my %lastSignalCheck;
-my %lastSignalTrigger;
 my $redis = Redis->new( server => 'signal-scan-redis:6379' );
-
 while (1) {
     foreach my $signal (@signals) {
         my $signal_name = $signal->{name};
         $logger->debug("$signal_name: begin");
-        my $results = get_signal($signal);
-        if ($results) {
-            $logger->info("$signal_name: TRIGGER ALERT $results");
-            zap( { subject => "fx-signal-check: $signal_name", message => $results } );
-            $lastSignalTrigger{$signal_name} = time();
-        } else {
-            $logger->debug("$signal_name: No trigger");
-        }
+        check_alert($signal);
+        $logger->debug("$signal_name: end");
     }
 
     $logger->info("Sleeping");
@@ -143,11 +134,13 @@ while (1) {
 
 ## NOTE: These methods all take a $signal as an argument
 ## TODO: Refactor into a Signal class
-sub get_signal {
+
+# Checks if $signal has occured and sends an alert.
+sub check_alert {
     my $signal = shift;
     my $signal_name = $signal->{name};
 
-    return unless (_wants_trigger($signal, $signal_name));
+    return unless (_wants_alert($signal, $signal_name));
     return unless (_wants_signal_check($signal, $signal_name));
 
     my $args = $signal->{args};
@@ -165,7 +158,16 @@ sub get_signal {
             $results .= "$instrument\t$result->{$instrument}->{data}->[0]\n";
         }
     }
-    $lastSignalCheck{$signal_name} = time();
+    $redis->hset("lastSignalCheck", $signal_name, time());
+
+    if ($results) {
+        $logger->info("$signal_name: TRIGGER ALERT $results");
+        zap( { subject => "fx-signal-check: $signal_name", message => $results } );
+        $redis->hput( "lastSignalAlert", $signal_name => time() );
+    } else {
+        $logger->debug("$signal_name: No trigger");
+    }
+
     return $results;
 }
 
@@ -173,13 +175,14 @@ sub get_signal {
 # Hence a minimum trigger interval is set, and triggers won't fire unless X seconds have elapsed since the
 # last trigger.
 # Returns true if we want to send a trigger, or false if we don't want to send a trigger because one has already been sent and trigger_minimum_interval has not elapsed.
-sub _wants_trigger {
+sub _wants_alert {
     my $signal = shift;
     my $signal_name = $signal->{name};
 
-    return 1 if (!$lastSignalTrigger{$signal_name});
+    my $lastSignalAlertTime = $redis->hget("lastSignalAlert", $signal_name);
+    return 1 if (!$lastSignalAlertTime);
     my $trigger_minimum_interval = $signal->{trigger_minimum_interval} || 14400;
-    my $triggered_seconds_ago = time() - $lastSignalTrigger{$signal_name};
+    my $triggered_seconds_ago = time() - $lastSignalAlertTime;
 
     $logger->debug("$signal_name: triggered $triggered_seconds_ago seconds ago, minimum_interval is $trigger_minimum_interval");
     return ( $triggered_seconds_ago >= $trigger_minimum_interval );
@@ -192,9 +195,10 @@ sub _wants_signal_check {
     my $signal = shift;
     my $signal_name = $signal->{name};
 
-    return 1 if (!$lastSignalCheck{$signal_name});
+    my $lastSignalCheckTime = $redis->hget("lastSignalCheck", $signal_name);
+    return 1 if (!$lastSignalCheckTime);
     my $signal_interval = $signal->{signal_check_interval} || $logger->logdie("No interval defined for signal $signal_name");
-    my $signal_check_in = $lastSignalCheck{$signal_name} + $signal_interval - time();
+    my $signal_check_in = $lastSignalCheckTime + $signal_interval - time();
 
     $logger->debug("$signal_name: due in $signal_check_in seconds");
     return ( $signal_check_in <= 0);
