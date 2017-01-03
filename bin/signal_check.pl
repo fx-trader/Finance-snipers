@@ -162,7 +162,7 @@ sub check_alert {
     if ($results) {
         $logger->info("$signal_name: TRIGGER ALERT $results");
         zap( { subject => "fx-signal-check: $signal_name", message => $results } );
-        $redis->hput( "lastSignalAlert", $signal_name => time() );
+        $redis->hset( "lastSignalAlert", $signal_name => time() );
     } else {
         $logger->debug("$signal_name: No trigger");
     }
