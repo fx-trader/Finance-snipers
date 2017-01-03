@@ -1,4 +1,4 @@
-#!/versions/perl-5.20.0/bin/perl
+#!/usr/bin/perl
 
 use strict;
 use warnings;
@@ -6,7 +6,6 @@ use warnings;
 $|=1;
 
 use Log::Log4perl;
-use LWP::Simple;
 use LWP::UserAgent;
 use JSON::MaybeXS;
 use Data::Dumper;
@@ -211,11 +210,14 @@ sub get_all_instruments {
 
 sub get_endpoint_result {
     my $url = shift;
-    my $content = get($url);
 
+    my $ua = LWP::UserAgent->new();
     $logger->trace("Fetching $url");
-    die($!) unless($content);
 
+    my $response = $ua->get( $url );
+    die($!) unless($response->is_success);
+
+    my $content = $response->content;
     my $d = decode_json($content);
 
     return $d->{results};
