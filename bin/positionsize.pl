@@ -4,9 +4,7 @@ use strict;
 use warnings;
 
 use Finance::HostedTrader::Config;
-
-my $c = Finance::HostedTrader::Config->new();
-my $symbols = $c->symbols;
+my $symbols = Finance::HostedTrader::Config->new()->symbols();
 
 my $data = calculatePositionSize("EURGBP", 200, "short");
 
