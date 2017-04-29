@@ -207,23 +207,23 @@ sub check_alert {
 
     my $result = get_endpoint_result($url);
 
-    my $results = '';
+    my $email_message_body = '';
     foreach my $instrument (sort keys %$result) {
         if (@{$result->{$instrument}->{data}}) {
-            $results .= "$instrument\t$result->{$instrument}->{data}->[0]\n";
+            $email_message_body .= "$instrument\t$result->{$instrument}->{data}->[0]\n";
         }
     }
     $redis->hset("lastSignalCheck", $signal_name, time());
 
-    if ($results) {
-        $logger->info("$signal_name: TRIGGER ALERT $results");
-        zap( { subject => "fx-signal-check: $signal_name", message => $results } );
+    if ($email_message_body) {
+        $logger->info("$signal_name: TRIGGER ALERT $email_message_body");
+        zap( { subject => "fx-signal-check: $signal_name", message => $email_message_body } );
         $redis->hset( "lastSignalAlert", $signal_name => time() );
     } else {
         $logger->debug("$signal_name: No trigger");
     }
 
-    return $results;
+    return $email_message_body;
 }
 
 # When a signal is triggered, we don't want to send the same alert multiple sequential times
