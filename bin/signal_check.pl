@@ -40,6 +40,10 @@ my @signals = (
         },
         signal_check_interval => 300,
         description => "RSI gone mad",
+        stop_loss => {
+            expression => "max(high,2)",
+            timeframe => "day",
+        },
     },
     {   name => "4hour RSI above 70 mad - LONG NOW !",
         args => {
@@ -51,6 +55,10 @@ my @signals = (
         },
         signal_check_interval => 300,
         description => "RSI gone mad",
+        stop_loss => {
+            expression => "min(low,2)",
+            timeframe => "day",
+        },
     },
     {   name => "day ATR double average",
         args => {
@@ -103,9 +111,19 @@ sub check_alert {
     my $email_message_body = '';
     foreach my $instrument (sort keys %$result) {
         if (@{$result->{$instrument}->{data}}) {
-            $email_message_body .= "$instrument\t$result->{$instrument}->{data}->[0]\n";
+            $email_message_body .= "$instrument\t$result->{$instrument}->{data}->[0]";
+            if ( $signal->{stop_loss} ) {
+                my $position_size_data = calculatePositionSize($instrument, 300, $signal->{stop_loss});
+                my $entry   = $position_size_data->{current_price};
+                my $exit    = $position_size_data->{exit};
+                my $size    = $position_size_data->{size};
+
+                $email_message_body .= "\t$entry\t$exit\t$size";
+            }
+            $email_message_body .= "\n";
         }
     }
+
     $redis->hset("lastSignalCheck", $signal_name, time());
 
     if ($email_message_body) {
@@ -155,6 +173,62 @@ sub _wants_signal_check {
 
 sub get_all_instruments {
     return get_endpoint_result("$api_base/instruments");
+}
+
+
+#### The functions in this block deal with determing position size
+sub getRatioCurrency {
+    my ($instrument) = @_;
+
+    use Finance::HostedTrader::Config;
+    my $symbols = Finance::HostedTrader::Config->new()->symbols();
+    my $symbolCurrency = $symbols->getSymbolDenominator($instrument);
+    my $accountCurrency = 'GBP'; #TODO, hardcoded to GBP
+    if ($symbolCurrency eq $accountCurrency) {
+        return;
+    }
+
+    my $ratio_symbol = "${accountCurrency}${symbolCurrency}";
+    return $ratio_symbol;
+}
+
+sub calculatePositionSize {
+use POSIX;
+    my ($instrument, $maxLoss, $stopLossData) = @_;
+
+    my $exit_expression             = $stopLossData->{expression};
+    my $exit_expression_timeframe   = $stopLossData->{timeframe};
+    my $current_price   = get_endpoint_result_scalar("timeframe=5min&expression=close", $instrument);
+    my $exit            = get_endpoint_result_scalar("timeframe=${exit_expression_timeframe}&expression=${exit_expression}", $instrument);
+
+    my $ratioCurrency = getRatioCurrency($instrument);
+    my $positionSize;
+    if ($ratioCurrency) {
+        use Finance::HostedTrader::Config;
+        my $symbols = Finance::HostedTrader::Config->new()->symbols();
+        my $ratio = get_endpoint_result_scalar("timeframe=5min&expression=close", $ratioCurrency);
+        $positionSize = POSIX::floor( $maxLoss * $ratio / ($current_price - $exit) ) / $symbols->getSymbolMeta2($instrument);
+    } else {
+        $positionSize = POSIX::floor( $maxLoss / ($current_price - $exit) );
+    }
+
+    return {
+        current_price   => $current_price,
+        exit            => $exit,
+        size            => $positionSize,
+        maxLoss         => $maxLoss,
+    };
+}
+
+#### END OF The functions in this block deal with determing position size
+
+sub get_endpoint_result_scalar {
+    my $parameters = shift;
+    my $instrument = shift;
+
+    my $result = get_endpoint_result("http://api.fxhistoricaldata.com/v1/indicators?${parameters}&instruments=${instrument}");
+
+    return $result->{$instrument}{data}[0][1];
 }
 
 sub get_endpoint_result {
