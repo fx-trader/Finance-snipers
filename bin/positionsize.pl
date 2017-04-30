@@ -6,10 +6,14 @@ use warnings;
 use Finance::HostedTrader::Config;
 my $symbols = Finance::HostedTrader::Config->new()->symbols();
 
-my $data = calculatePositionSize("EURGBP", 200, "short");
+my $all_instruments = "AUDUSD,AUDJPY,AUDNZD,CHFJPY,EURCAD,EURCHF,EURGBP,EURJPY,EURUSD,GBPCHF,GBPJPY,GBPNZD,GBPUSD,NZDUSD,NZDJPY,USDCAD,USDCHF,USDHKD,USDJPY,XAUUSD,XAGUSD,AUS200,ESP35,FRA40,GER30,HKG33,JPN225,NAS100,SPX500,UK100,UKOil,US30,USOil,USDOLLAR,Bund";
 
-print Dumper($data);use Data::Dumper;
+foreach my $instrument (split(",", $all_instruments)) {
 
+my $data = calculatePositionSize($instrument, 200, "short");
+
+print "$instrument - " . Dumper($data);use Data::Dumper;
+}
 
 sub getRatioCurrency {
     my ($symbol) = @_;
@@ -66,6 +70,7 @@ use JSON::MaybeXS;
 
     my $ua = LWP::UserAgent->new();
 
+    print "$url\n";
     my $response = $ua->get( $url );
     die($!) unless($response->is_success);
 
