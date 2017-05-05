@@ -72,6 +72,43 @@ my @signals = (
         signal_check_interval => 7200,
         description => "Range double the average",
     },
+#    {   name => "AUDUSD SHORT NOW !",
+#        args => {
+#            expression  => "rsi(close,14) > 50",
+#            timeframe   => "15min",
+#            start_period=> "1 hour ago",
+#            max_loaded_items => 50,
+#            instruments => "AUDUSD",
+#        },
+#        signal_check_interval => 300,
+#        description => "Daily trade check",
+#        stop_loss => {
+#            expression => "max(high,2)",
+#            timeframe => "day",
+#        },
+#    },
+    {   name => "BIG FISH ALERT ! XAGUSD BREAKOUT ?",
+        args => {
+            expression  => "max(high,100) > 18.30",
+            timeframe   => "5min",
+            start_period=> "2 hours ago",
+            max_loaded_items => 100,
+            instruments => "XAGUSD",
+        },
+        signal_check_interval => 1200,
+        description => "",
+    },
+    {   name => "BIG FISH ALERT ! EURGBP BREAKOUT ?",
+        args => {
+            expression  => "min(low,100) < 0.8335",
+            timeframe   => "5min",
+            start_period=> "2 hours ago",
+            max_loaded_items => 100,
+            instruments => "EURGBP",
+        },
+        signal_check_interval => 1200,
+        description => "",
+    },
 
 );
 
