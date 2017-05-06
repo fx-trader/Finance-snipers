@@ -1,16 +1,18 @@
 #!/usr/bin/perl
 
-# Query that produces the max weekly range for all symbols
+# Prints all symbols sorted by how much they moved in the latest weekly period
 
 use strict;
 use warnings;
 
 use Finance::HostedTrader::Config;
+use Finance::HostedTrader::Datasource;
 use Data::Dumper;
 
 
 my $c       = Finance::HostedTrader::Config->new();
 my $symbols = $c->symbols->natural;
+my $dbh     = Finance::HostedTrader::Datasource->new()->dbh();
 
 my @inner_queries;
 my $table_count = 0;
@@ -29,4 +31,10 @@ foreach my $symbol (@$symbols) {
 }
 
 
-print "SELECT T1.datetime, GREATEST(" . join(",", @all_fields) . ") FROM " . join(" INNER JOIN \n", @inner_queries);
+my $sql = "SELECT T1.datetime, " . join(",", @all_fields) . " FROM " . join(" INNER JOIN \n", @inner_queries) . " LIMIT 1";
+my $data = $dbh->selectrow_hashref($sql);
+delete $data->{datetime};
+print Dumper($data);
+foreach my $name (sort { $data->{$b} <=> $data->{$a} } keys %$data) {
+printf "%-8s %s\n", $name, $data->{$name};
+}
