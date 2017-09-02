@@ -24,7 +24,7 @@ my $logger = Log::Log4perl->get_logger();
 
 
 
-my $api_base = "http://api.fxhistoricaldata.com/v1";
+my $api_base = "http://api.fxhistoricaldata.com";
 #my $api_base = "http://172.17.0.1:5001";
 
 #my $all_instruments = join(",", @{ get_all_instruments() });
@@ -87,24 +87,25 @@ my @signals = (
 #            timeframe => "day",
 #        },
 #    },
-    {   name => "BIG FISH ALERT ! XAGUSD BREAKOUT ?",
+#    {   name => "BIG FISH ALERT ! XAGUSD BREAKOUT ?",
+#        args => {
+#            expression  => "max(high,100) > 18.30",
+#            timeframe   => "5min",
+#            start_period=> "2 hours ago",
+#            max_loaded_items => 100,
+#            instruments => "XAGUSD",
+#        },
+#        signal_check_interval => 1200,
+#        description => "",
+#    },
+    {   name => "XAUUSD long",
         args => {
-            expression  => "max(high,100) > 18.30",
-            timeframe   => "5min",
+            #expression  => "macddiff( close,12, 26, 9 ) < 0 ",
+            expression  => "rsi(close,14) < 34",
+            timeframe   => "15min",
             start_period=> "2 hours ago",
             max_loaded_items => 100,
-            instruments => "XAGUSD",
-        },
-        signal_check_interval => 1200,
-        description => "",
-    },
-    {   name => "BIG FISH ALERT ! EURGBP BREAKOUT ?",
-        args => {
-            expression  => "min(low,100) < 0.8335",
-            timeframe   => "5min",
-            start_period=> "2 hours ago",
-            max_loaded_items => 100,
-            instruments => "EURGBP",
+            instruments => "XAUUSD",
         },
         signal_check_interval => 1200,
         description => "",
