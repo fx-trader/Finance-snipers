@@ -38,7 +38,7 @@ my @signals = (
             instruments => $all_instruments,
             item_count  => 1,
         },
-        signal_check_interval => 300,
+        signal_check_interval => 900,
         description => "RSI gone mad",
         stop_loss => {
             expression => "max(high,2)",
@@ -53,7 +53,7 @@ my @signals = (
             instruments => $all_instruments,
             item_count  => 1,
         },
-        signal_check_interval => 300,
+        signal_check_interval => 900,
         description => "RSI gone mad",
         stop_loss => {
             expression => "min(low,2)",
@@ -107,7 +107,7 @@ my @signals = (
             max_loaded_items => 100,
             instruments => "XAUUSD",
         },
-        signal_check_interval => 1200,
+        signal_check_interval => 300,
         description => "",
     },
 
@@ -144,7 +144,15 @@ sub check_alert {
 
     $logger->trace($url);
 
-    my $result = get_endpoint_result($url);
+    my $result;
+    eval {
+        $result = get_endpoint_result($url);
+        1;
+    } or do {
+        $logger->error("$signal_name: $@");
+        $redis->hset("lastSignalCheckError", $signal_name, time());
+        return;
+    };
 
     my $email_message_body = '';
     foreach my $instrument (sort keys %$result) {
@@ -162,7 +170,7 @@ sub check_alert {
         }
     }
 
-    $redis->hset("lastSignalCheck", $signal_name, time());
+    $redis->hset("lastSignalCheckSuccess", $signal_name, time());
 
     if ($email_message_body) {
         $logger->info("$signal_name: TRIGGER ALERT $email_message_body");
@@ -199,13 +207,28 @@ sub _wants_signal_check {
     my $signal = shift;
     my $signal_name = $signal->{name};
 
-    my $lastSignalCheckTime = $redis->hget("lastSignalCheck", $signal_name);
+    my $lastSignalCheckTime = $redis->hget("lastSignalCheckSuccess", $signal_name);
     return 1 if (!$lastSignalCheckTime);
+    my $lastSignalError = $redis->hget("lastSignalCheckError", $signal_name);
+    $lastSignalError = 0 if (!$lastSignalError);
+
+    my $timeSinceLastError = time() - $lastSignalError;
+    if ( $timeSinceLastError < 60 ) {
+        $logger->debug("signal_name: Error occurred $timeSinceLastError seconds ago, waiting for at least 60 seconds");
+        return 0;
+    }
+
+
     my $signal_interval = $signal->{signal_check_interval} || $logger->logdie("No interval defined for signal $signal_name");
     my $signal_check_in = $lastSignalCheckTime + $signal_interval - time();
 
-    $logger->debug("$signal_name: due in $signal_check_in seconds");
-    return ( $signal_check_in <= 0);
+    if ( $signal_check_in <= 0 ) {
+        $logger->debug("$signal_name: check overdue by " . abs($signal_check_in) . " seconds");
+        return 1;
+    } else {
+        $logger->debug("$signal_name: check due in $signal_check_in seconds");
+        return 0;
+    }
 }
 ## END TODO REFACTOR INTO CLASS
 
@@ -276,7 +299,7 @@ sub get_endpoint_result {
     $logger->trace("Fetching $url");
 
     my $response = $ua->get( $url );
-    die($!) unless($response->is_success);
+    $logger->logdie($!) unless($response->is_success);
 
     my $content = $response->content;
     my $d = decode_json($content);
