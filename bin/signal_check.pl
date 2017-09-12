@@ -295,7 +295,7 @@ sub get_endpoint_result_scalar {
     my $parameters = shift;
     my $instrument = shift;
 
-    my $result = get_endpoint_result("http://api.fxhistoricaldata.com/v1/indicators?${parameters}&instruments=${instrument}");
+    my $result = get_endpoint_result("http://api.fxhistoricaldata.com/indicators?${parameters}&instruments=${instrument}");
 
     return $result->{$instrument}{data}[0][1];
 }
