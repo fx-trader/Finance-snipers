@@ -177,7 +177,7 @@ sub getIndicatorValue {
     use JSON::MaybeXS;
 
     my $ua = LWP::UserAgent->new();
-    my $url = "http://api.fxhistoricaldata.com/v1/indicators?instruments=$symbol&expression=$indicator&item_count=1&timeframe=$tf";
+    my $url = "http://api.fxhistoricaldata.com/indicators?instruments=$symbol&expression=$indicator&item_count=1&timeframe=$tf";
     my $response = $ua->get($url);
 
     my $decoded_content = $response->decoded_content;
@@ -207,7 +207,7 @@ sub getSignalValue {
     use JSON::MaybeXS;
 
     my $ua = LWP::UserAgent->new();
-    my $url = "http://api.fxhistoricaldata.com/v1/signals?instruments=$symbol&expression=$signal&item_count=1&timeframe=$tf";
+    my $url = "http://api.fxhistoricaldata.com/signals?instruments=$symbol&expression=$signal&item_count=1&timeframe=$tf";
     my $response = $ua->get($url);
 
     my $decoded_content = $response->decoded_content;

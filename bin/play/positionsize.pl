@@ -58,7 +58,7 @@ sub get_endpoint_result_scalar {
     my $parameters = shift;
     my $symbol = shift;
 
-    my $result = get_endpoint_result("http://api.fxhistoricaldata.com/v1/indicators?${parameters}&instruments=${symbol}");
+    my $result = get_endpoint_result("http://api.fxhistoricaldata.com/indicators?${parameters}&instruments=${symbol}");
 
     return $result->{$symbol}{data}[0][1];
 }
