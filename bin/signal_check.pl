@@ -78,37 +78,25 @@ my @signals = (
             timeframe   => "15min",
             start_period=> "2 hours ago",
             max_loaded_items => 100,
-            instruments => "XAUUSD,UKOil",
+            instruments => "GBPJPY,USOil,UKOil",
         },
         signal_check_interval => 300,
         description => "",
     },
     {   name => "This week short",
         args => {
-            #expression  => "macddiff( close,12, 26, 9 ) < 0 ",
             expression  => "rsi(close,14) > 66",
             timeframe   => "15min",
             start_period=> "2 hours ago",
             max_loaded_items => 100,
-            instruments => "USDJPY",
+            instruments => "EURGBP",
         },
         signal_check_interval => 300,
         description => "",
     },
-    {   name => "extreme RSI long",
+    {   name => "extreme RSI",
         args => {
-            expression  => "rsi(close,14) >= 90",
-            timeframe   => "15min",
-            start_period=> "2 hours ago",
-            max_loaded_items => 30,
-            instruments => $all_instruments,
-        },
-        signal_check_interval => 300,
-        description => "",
-    },
-    {   name => "extreme RSI short",
-        args => {
-            expression  => "rsi(close,14) <= 10",
+            expression  => "rsi(close,14) >= 90 or rsi(close,14) <= 10",
             timeframe   => "15min",
             start_period=> "2 hours ago",
             max_loaded_items => 30,
@@ -142,8 +130,8 @@ sub check_alert {
     my $signal = shift;
     my $signal_name = $signal->{name};
 
-    return unless (_wants_alert($signal, $signal_name));
-    return unless (_wants_signal_check($signal, $signal_name));
+    return unless (_wants_alert($signal));
+    return unless (_wants_signal_check($signal));
 
     my $args = $signal->{args};
 
@@ -182,7 +170,7 @@ sub check_alert {
 
     if ($email_message_body) {
         $logger->info("$signal_name: TRIGGER ALERT $email_message_body");
-        zap( { subject => "fx-signal-check: $signal_name", message => $email_message_body } );
+        zap( { subject => "fx-signal-check: $signal_name", message => "$url\n\n$email_message_body" } );
         $redis->hset( "lastSignalAlert", $signal_name => time() );
     } else {
         $logger->debug("$signal_name: No trigger");
