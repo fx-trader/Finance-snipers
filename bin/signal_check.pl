@@ -148,7 +148,7 @@ sub check_alert {
 
     if ($email_message_body) {
         $logger->info("$signal_name: TRIGGER ALERT $email_message_body");
-        zap( { subject => "fx-signal-check: $signal_name", message => "$url\n\n$email_message_body" } );
+        zap( { subject => "fx-signal-check: $signal_name", message => "$email_message_body\n\n$url" } );
         $redis->hset( "lastSignalAlert", $signal_name => time() );
     } else {
         $logger->debug("$signal_name: No trigger");
