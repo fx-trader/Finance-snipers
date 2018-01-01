@@ -169,7 +169,7 @@ sub check_alert {
     my $args = $signal->{args};
 
     my $query_string = join("&", map { "$_=$args->{$_}" } keys(%$args));
-    my $url = "$api_base/signals?$query_string";
+    my $url = "$api_base/signalsp?$query_string";
 
     $logger->trace($url);
 
