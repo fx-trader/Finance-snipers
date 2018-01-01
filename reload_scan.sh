@@ -1,6 +1,6 @@
 #!/bin/sh
 
-SNIPER_DIR=/root/src/Finance-snipers
+SNIPER_DIR=$HOME/src/Finance-snipers
 
 docker rm -f signal-scan 2> /dev/null || true
 docker run  \
