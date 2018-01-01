@@ -129,7 +129,7 @@ my @signals = (
     },
     {   name => "ENTER: Accumulate Long",
         args => {
-            expression  => "15minute(rsi(close,14)<35) and 4hour(macddiff(close,12,26,9) < 0)",
+            expression  => "15minute(rsi(close,14)<40) and 4hour(macddiff(close,12,26,9) < 0)",
             timeframe   => "15min",
             start_period=> "2 hours ago",
             max_loaded_items => 10000,
