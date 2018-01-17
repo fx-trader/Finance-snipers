@@ -30,6 +30,17 @@ my $api_base = "http://api.fxhistoricaldata.com";
 #my $all_instruments = join(",", @{ get_all_instruments() });
 my $all_instruments = "AUDUSD,AUDJPY,AUDNZD,CHFJPY,EURCAD,EURCHF,EURGBP,EURJPY,EURUSD,GBPCHF,GBPJPY,GBPNZD,GBPUSD,NZDUSD,NZDJPY,USDCAD,USDCHF,USDHKD,USDJPY,XAUUSD,XAGUSD,AUS200,ESP35,FRA40,GER30,HKG33,JPN225,NAS100,SPX500,UK100,UKOil,US30,USOil,USDOLLAR,Bund";
 my @signals = (
+    {   name => "Weekly RSI extreme",
+        args => {
+            expression  => "rsi(close,14) < 15 or rsi(close,14) > 85",
+            timeframe => "week",
+            start_period=> "7 days ago",
+            instruments => $all_instruments,
+            item_count  => 1,
+        },
+        signal_check_interval => 21200,
+        description => "weekly extreme, stay on the trend on pullbacks, but look for a long term reversal in the next 6 to 12 months.  Look at USOil Jan 2015 for an example.",
+    },
     {   name => "4hour RSI below 30 mad - SHORT NOW !",
         args => {
             expression  => "4hour(previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30) and 15minute(rsi(close,14) > 65)",
