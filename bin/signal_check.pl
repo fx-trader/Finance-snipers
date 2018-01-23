@@ -267,7 +267,7 @@ sub _wants_alert {
     my $trigger_minimum_interval = $signal->{trigger_minimum_interval} || 14400;
     my $triggered_seconds_ago = time() - $lastSignalAlertTime;
 
-    $logger->debug("$signal_name: triggered $triggered_seconds_ago seconds ago, minimum_interval is $trigger_minimum_interval");
+    $logger->debug("$signal_name $instrument: triggered $triggered_seconds_ago seconds ago, minimum_interval is $trigger_minimum_interval");
     return ( $triggered_seconds_ago >= $trigger_minimum_interval );
 }
 
