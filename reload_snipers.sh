@@ -18,7 +18,7 @@ function load_sniper {
             --restart=always \
             --name ${SNIPER_ID} \
             -h ${SNIPER_ID}.fxhistoricaldata.com \
-            -v /root/fxtrader.cfg:/etc/fxtrader \
+            -v /root/fx/cfg:/etc/fxtrader \
             -v $SNIPER_DIR/bin:/root/snipers \
             -e FXCM_USERNAME -e FXCM_PASSWORD -e FXCM_ACCOUNT_TYPE \
             -e SYMBOL -e FXCM_SYMBOL \

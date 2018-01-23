@@ -1,6 +1,6 @@
 # Start a dev container:
 
-    docker run --rm --name sniper-dev --link signal-scan-redis --link fxdata -h sniper-test.fxhistoricaldata.com -v /root/fxtrader.cfg:/etc/fxtrader -v /root/src/Finance-snipers/bin:/root/snipers -ti fxtrader/finance-hostedtrader bash
+    docker run --rm --name sniper-dev --link signal-scan-redis --link fxdata -h sniper-test.fxhistoricaldata.com -v /root/fx/cfg:/etc/fxtrader -v /root/src/Finance-snipers/bin:/root/snipers -ti fxtrader/finance-hostedtrader bash
 
 
 # Set all the required environment variables, ie:
