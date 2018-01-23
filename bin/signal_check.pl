@@ -194,18 +194,24 @@ while (1) {
 # Checks if $signal has occured and sends an alert.
 sub check_alert {
     my $signal = shift;
-    my $signal_name = $signal->{name};
 
-    return unless (_wants_alert($signal));
     return unless (_wants_signal_check($signal));
+    my %args = %{ $signal->{args} };
+    my @instruments = split(/,/, delete $args{instruments});
+    my @instruments_to_check;
+    foreach my $instrument (@instruments) {
+        push @instruments_to_check, $instrument if _wants_alert($signal, $instrument);
+    }
 
-    my $args = $signal->{args};
+    return unless(@instruments_to_check);
 
-    my $query_string = join("&", map { "$_=$args->{$_}" } keys(%$args));
+    $args{instruments} = join(',', @instruments_to_check);
+    my $query_string = join("&", map { "$_=$args{$_}" } keys(%args));
     my $url = "$api_base/signalsp?$query_string";
 
     $logger->trace($url);
 
+    my $signal_name = $signal->{name};
     my $result;
     eval {
         $result = get_endpoint_result($url);
@@ -237,7 +243,9 @@ sub check_alert {
     if ($email_message_body) {
         $logger->info("$signal_name: TRIGGER ALERT $email_message_body");
         zap( { subject => "fx-signal-check: $signal_name", message => "$email_message_body\n\n$url" } );
-        $redis->hset( "lastSignalAlert", $signal_name => time() );
+        foreach my $instrument (sort keys %$result) {
+            $redis->hset( "lastSignalAlert", $signal_name.$instrument => time() );
+        }
     } else {
         $logger->debug("$signal_name: No trigger");
     }
@@ -251,9 +259,10 @@ sub check_alert {
 # Returns true if we want to send a trigger, or false if we don't want to send a trigger because one has already been sent and trigger_minimum_interval has not elapsed.
 sub _wants_alert {
     my $signal = shift;
+    my $instrument = shift;
     my $signal_name = $signal->{name};
 
-    my $lastSignalAlertTime = $redis->hget("lastSignalAlert", $signal_name);
+    my $lastSignalAlertTime = $redis->hget("lastSignalAlert", $signal_name.$instrument);
     return 1 if (!$lastSignalAlertTime);
     my $trigger_minimum_interval = $signal->{trigger_minimum_interval} || 14400;
     my $triggered_seconds_ago = time() - $lastSignalAlertTime;
