@@ -209,7 +209,7 @@ sub check_alert {
     my $query_string = join("&", map { "$_=$args{$_}" } keys(%args));
     my $url = "$api_base/signalsp?$query_string";
 
-    $logger->trace($url);
+    $logger->debug($url);
 
     my $signal_name = $signal->{name};
     my $result;
@@ -242,9 +242,12 @@ sub check_alert {
 
     if ($email_message_body) {
         $logger->info("$signal_name: TRIGGER ALERT $email_message_body");
-        zap( { subject => "fx-signal-check: $signal_name", message => "$email_message_body\n\n$url" } );
+        zap( { subject => "FXAPI: $signal_name", message => "$email_message_body\n\n$url" } );
         foreach my $instrument (sort keys %$result) {
-            $redis->hset( "lastSignalAlert", $signal_name.$instrument => time() );
+            if (@{$result->{$instrument}->{data}}) {
+                $logger->debug("set lastSignalAlert $signal_name $instrument");
+                $redis->hset( "lastSignalAlert", $signal_name.$instrument => time() );
+            }
         }
     } else {
         $logger->debug("$signal_name: No trigger");
@@ -263,6 +266,7 @@ sub _wants_alert {
     my $signal_name = $signal->{name};
 
     my $lastSignalAlertTime = $redis->hget("lastSignalAlert", $signal_name.$instrument);
+    $logger->debug("checking $signal_name $instrument");
     return 1 if (!$lastSignalAlertTime);
     my $trigger_minimum_interval = $signal->{trigger_minimum_interval} || 14400;
     my $triggered_seconds_ago = time() - $lastSignalAlertTime;
@@ -379,24 +383,18 @@ sub get_endpoint_result {
 }
 
 sub zap {
+    use Email::Simple;
+    use Email::Simple::Creator;
+    use Email::Sender::Simple qw(sendmail);
     my $obj = shift;
 
-    my $url = 'https://zapier.com/hooks/catch/782272/3f0nap/';
-
-    my $ua      = LWP::UserAgent->new();
-    my $response = $ua->post( $url, Content_Type => 'application/json', Content => encode_json($obj) );
-
-    if ($response->is_success) {
-        my $response_body = $response->as_string();
-        $logger->trace($response_body);
-        my $result = decode_json($response->content);
-        if ($result->{status} && $result->{status} eq 'success') {
-            $logger->info("Sent request to $url successfully");
-        } else {
-            $logger->error("Request to $url came back without success");
-        }
-    } else {
-        $logger->error("Error sending request to $url");
-        $logger->error($response->status_line());
-    }
+    my $email = Email::Simple->create(
+        header => [
+            From => 'FX Robot <robot@fxhistoricaldata.com>',
+            To => 'joaocosta@zonalivre.org',
+            Subject => $obj->{subject},
+        ],
+        body => $obj->{message}
+    );
+    sendmail($email);
 }
