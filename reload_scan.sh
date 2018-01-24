@@ -7,6 +7,7 @@ docker run  \
     --restart=always \
     --name signal-scan \
     --link signal-scan-redis:signal-scan-redis \
+    --link smtp:smtp \
     -h signal-scan.fxhistoricaldata.com \
     -v $SNIPER_DIR/bin:/root/snipers \
     -v $HOME/fx/cfg:/etc/fxtrader \
