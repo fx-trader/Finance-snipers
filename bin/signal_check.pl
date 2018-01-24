@@ -107,7 +107,7 @@ my @signals = (
 #    },
     {   name => "Breakout EURGBP",
         args => {
-            expression  => "high > 0.9030 or low < 0.875 or low < 0.831",
+            expression  => "high > 0.9030 or low < 0.8325",
             timeframe   => "4hour",
             start_period=> "2 hours ago",
             max_loaded_items => 10,
