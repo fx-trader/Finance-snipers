@@ -30,9 +30,42 @@ my $api_base = "http://api.fxhistoricaldata.com";
 #my $all_instruments = join(",", @{ get_all_instruments() });
 my $all_instruments = "AUDUSD,AUDJPY,AUDNZD,CHFJPY,EURCAD,EURCHF,EURGBP,EURJPY,EURUSD,GBPCHF,GBPJPY,GBPNZD,GBPUSD,NZDUSD,NZDJPY,USDCAD,USDCHF,USDHKD,USDJPY,XAUUSD,XAGUSD,AUS200,ESP35,FRA40,GER30,HKG33,JPN225,NAS100,SPX500,UK100,UKOil,US30,USOil,USDOLLAR,Bund";
 my @signals = (
+    {   name => "LONG NOW",
+        args => {
+            expression  => "rsi(close,14) < 30",
+            timeframe => "15min",
+            start_period=> "2 hours ago",
+            instruments => get_long_instruments(),
+            item_count  => 1,
+        },
+        signal_check_interval => 60,
+        description => "",
+    },
+    {   name => "SHORT NOW",
+        args => {
+            expression  => "rsi(close,14) > 70",
+            timeframe => "15min",
+            start_period=> "2 hours ago",
+            instruments => get_short_instruments(),
+            item_count  => 1,
+        },
+        signal_check_interval => 60,
+        description => "",
+    },
+    {   name => "RSI extreme",
+        args => {
+            expression  => "rsi(close,14) < 22 or rsi(close,14) > 78",
+            timeframe => "15min",
+            start_period=> "2 hours ago",
+            instruments => $all_instruments,
+            item_count  => 1,
+        },
+        signal_check_interval => 60,
+        description => "Trend should continue for at least a couple of days, look for pullbacks.  See XAGUSD April 23, 2018.",
+    },
     {   name => "Weekly RSI extreme",
         args => {
-            expression  => "rsi(close,14) < 15 or rsi(close,14) > 85",
+            expression  => "rsi(close,14) < 22 or rsi(close,14) > 78",
             timeframe => "week",
             start_period=> "7 days ago",
             instruments => $all_instruments,
@@ -42,6 +75,7 @@ my @signals = (
         description => "weekly extreme, stay on the trend on pullbacks, but look for a long term reversal in the next 6 to 12 months.  Look at USOil Jan 2015 for an example.",
     },
     {   name => "4hour RSI below 30 mad - SHORT NOW !",
+        enabled => 0,
         args => {
             expression  => "4hour(previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30) and 15minute(rsi(close,14) > 65)",
             timeframe => "15min",
@@ -57,6 +91,7 @@ my @signals = (
         },
     },
     {   name => "4hour RSI above 70 mad - LONG NOW !",
+        enabled => 0,
         args => {
             expression  => "4hour(previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70) and 15minute(rsi(close,14) < 35)",
             timeframe => "15min",
@@ -83,20 +118,9 @@ my @signals = (
         signal_check_interval => 7200,
         description => "Range double the average",
     },
-#    {   name => "This week long",
-#        args => {
-#            expression  => "rsi(close,14) < 34",
-#            timeframe   => "15min",
-#            start_period=> "2 hours ago",
-#            max_loaded_items => 100,
-#            instruments => "GBPJPY",
-#        },
-#        signal_check_interval => 300,
-#        description => "",
-#    },
     {   name => "Breakout EURGBP",
         args => {
-            expression  => "high > 0.9030 or low < 0.8325",
+            expression  => "high > 0.9030 or low < 0.8695",
             timeframe   => "4hour",
             start_period=> "2 hours ago",
             max_loaded_items => 10,
@@ -117,17 +141,19 @@ my @signals = (
         description => "",
     },
     {   name => "ENTER: Accumulate Long",
+        enabled => 0,
         args => {
             expression  => "15minute(rsi(close,14)<40) and 4hour(macddiff(close,12,26,9) < 0)",
             timeframe   => "15min",
             start_period=> "2 hours ago",
             max_loaded_items => 10000,
-            instruments => "XAGUSD,XAUUSD,GBPUSD,USOil",
+            instruments => "XAGUSD,XAUUSD,GBPUSD,AUDUSD",
         },
         signal_check_interval => 300,
         description => "",
     },
     {   name => "ENTER: Accumulate Short",
+        enabled => 0,
         args => {
             expression  => "15minute(rsi(close,14)>60) and 4hour(macddiff(close,12,26,9) > 0)",
             timeframe   => "15min",
@@ -160,32 +186,26 @@ my @signals = (
 #        signal_check_interval => 300,
 #        description => "",
 #    },
-#    {   name => "ONE OFF: Long",
-#        args => {
-#            expression  => "15minute(rsi(close,14)<35)",
-#            timeframe   => "15min",
-#            start_period=> "2 hours ago",
-#            max_loaded_items => 10000,
-#            instruments => "GBPJPY,XAUUSD,XAGUSD",
-#        },
-#        signal_check_interval => 300,
-#        description => "",
-#    },
 
 
 );
+
 
 my $redis = Redis->new( server => 'signal-scan-redis:6379' );
 while (1) {
     foreach my $signal (@signals) {
         my $signal_name = $signal->{name};
+        if (exists($signal->{enabled}) && !$signal->{enabled}) {
+            $logger->debug("$signal_name: skip");
+            next;
+        }
         $logger->debug("$signal_name: begin");
         check_alert($signal);
         $logger->debug("$signal_name: end");
     }
 
     $logger->info("Sleeping");
-    sleep(30);
+    sleep(10);
 }
 
 ## NOTE: These methods all take a $signal as an argument
@@ -222,10 +242,10 @@ sub check_alert {
         return;
     };
 
-    my $email_message_body = '';
-    foreach my $instrument (sort keys %$result) {
+    my @instruments_triggered = sort keys(%$result);
+    foreach my $instrument (@instruments_triggered) {
         if (@{$result->{$instrument}->{data}}) {
-            $email_message_body .= "$instrument\t$result->{$instrument}->{data}->[0]";
+            my $email_message_body = "$instrument\t$result->{$instrument}->{data}->[0]";
             if ( $signal->{stop_loss} ) {
                 my $position_size_data = calculatePositionSize($instrument, 300, $signal->{stop_loss});
                 my $entry   = $position_size_data->{current_price};
@@ -234,26 +254,19 @@ sub check_alert {
 
                 $email_message_body .= "\t$entry\t$exit\t$size";
             }
-            $email_message_body .= "\n";
+            $logger->info("$signal_name: TRIGGER ALERT $email_message_body");
+            zap( { subject => "FXAPI: $instrument - $signal_name", message => "$email_message_body\n\n$url" } );
+            $logger->debug("set lastSignalAlert $signal_name $instrument");
+            $redis->hset( "lastSignalAlert", $signal_name.$instrument => time() );
         }
     }
 
     $redis->hset("lastSignalCheckSuccess", $signal_name, time());
 
-    if ($email_message_body) {
-        $logger->info("$signal_name: TRIGGER ALERT $email_message_body");
-        zap( { subject => "FXAPI: $signal_name", message => "$email_message_body\n\n$url" } );
-        foreach my $instrument (sort keys %$result) {
-            if (@{$result->{$instrument}->{data}}) {
-                $logger->debug("set lastSignalAlert $signal_name $instrument");
-                $redis->hset( "lastSignalAlert", $signal_name.$instrument => time() );
-            }
-        }
-    } else {
+    if (!@instruments_triggered) {
         $logger->debug("$signal_name: No trigger");
     }
 
-    return $email_message_body;
 }
 
 # When a signal is triggered, we don't want to send the same alert multiple sequential times
@@ -311,6 +324,15 @@ sub get_all_instruments {
     return get_endpoint_result("$api_base/instruments");
 }
 
+sub get_long_instruments {
+    my $data = get_endpoint_result("$api_base/screener?expression=rsi(close,14)&timeframe=day");
+    return $data->[0][0];
+}
+
+sub get_short_instruments {
+    my $data = get_endpoint_result("$api_base/screener?expression=rsi(close,14)&timeframe=day");
+    return $data->[scalar(@$data)-1][0];
+}
 
 #### The functions in this block deal with determing position size
 sub getRatioCurrency {
@@ -362,7 +384,7 @@ sub get_endpoint_result_scalar {
     my $parameters = shift;
     my $instrument = shift;
 
-    my $result = get_endpoint_result("http://api.fxhistoricaldata.com/indicators?${parameters}&instruments=${instrument}");
+    my $result = get_endpoint_result("$api_base/indicators?${parameters}&instruments=${instrument}");
 
     return $result->{$instrument}{data}[0][1];
 }
