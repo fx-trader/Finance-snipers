@@ -29,32 +29,49 @@ my $api_base = "http://api.fxhistoricaldata.com";
 
 #my $all_instruments = join(",", @{ get_all_instruments() });
 my $all_instruments = "AUDUSD,AUDJPY,AUDNZD,CHFJPY,EURCAD,EURCHF,EURGBP,EURJPY,EURUSD,GBPCHF,GBPJPY,GBPNZD,GBPUSD,NZDUSD,NZDJPY,USDCAD,USDCHF,USDHKD,USDJPY,XAUUSD,XAGUSD,AUS200,ESP35,FRA40,GER30,HKG33,JPN225,NAS100,SPX500,UK100,UKOil,US30,USOil,USDOLLAR,Bund";
+
+my ($long_instrument, $long_rsi_date, $long_rsi) = @{ get_longest_instrument() };
+my ($short_instrument, $short_rsi_date, $short_rsi) = @{ get_shortest_instrument() };
+
 my @signals = (
     {   name => "LONG NOW",
         args => {
-            expression  => "rsi(close,14) < 30",
+            expression  => "rsi(close,14) < " . ($long_rsi - 33),
             timeframe => "15min",
-            start_period=> "2 hours ago",
-            instruments => get_long_instruments(),
+            start_period=> "15 minutes ago",
+            instruments => $long_instrument,
             item_count  => 1,
         },
         signal_check_interval => 60,
+        trigger_minimum_interval => 3600,
         description => "",
     },
     {   name => "SHORT NOW",
         args => {
-            expression  => "rsi(close,14) > 70",
+            expression  => "rsi(close,14) > " . ($short_rsi + 33),
             timeframe => "15min",
-            start_period=> "2 hours ago",
-            instruments => get_short_instruments(),
+            start_period=> "15 minutes ago",
+            instruments => $short_instrument,
             item_count  => 1,
         },
         signal_check_interval => 60,
+        trigger_minimum_interval => 3600,
         description => "",
     },
-    {   name => "RSI extreme",
+    {   name => "RSI extreme > 80",
         args => {
-            expression  => "rsi(close,14) < 22 or rsi(close,14) > 78",
+            expression  => "rsi(close,14) > 80",
+            timeframe => "15min",
+            start_period=> "2 hours ago",
+            instruments => $all_instruments,
+            item_count  => 1,
+        },
+        signal_check_interval => 60,
+        description => "Trend should continue for at least a couple of days, look for pullbacks.  See XAGUSD April 23, 2018.",
+    },
+    {   name => "RSI extreme < 20",
+        args => {
+            expression  => "rsi(close,14) < 20",
             timeframe => "15min",
             start_period=> "2 hours ago",
             instruments => $all_instruments,
@@ -204,8 +221,7 @@ while (1) {
         $logger->debug("$signal_name: end");
     }
 
-    $logger->info("Sleeping");
-    sleep(10);
+    sleep(5);
 }
 
 ## NOTE: These methods all take a $signal as an argument
@@ -228,10 +244,10 @@ sub check_alert {
     $args{instruments} = join(',', @instruments_to_check);
     my $query_string = join("&", map { "$_=$args{$_}" } keys(%args));
     my $url = "$api_base/signalsp?$query_string";
-
-    $logger->debug($url);
-
     my $signal_name = $signal->{name};
+
+    $logger->debug("$signal_name: $url");
+
     my $result;
     eval {
         $result = get_endpoint_result($url);
@@ -279,7 +295,7 @@ sub _wants_alert {
     my $signal_name = $signal->{name};
 
     my $lastSignalAlertTime = $redis->hget("lastSignalAlert", $signal_name.$instrument);
-    $logger->debug("checking $signal_name $instrument");
+    $logger->debug("$signal_name: checking $instrument");
     return 1 if (!$lastSignalAlertTime);
     my $trigger_minimum_interval = $signal->{trigger_minimum_interval} || 14400;
     my $triggered_seconds_ago = time() - $lastSignalAlertTime;
@@ -324,14 +340,14 @@ sub get_all_instruments {
     return get_endpoint_result("$api_base/instruments");
 }
 
-sub get_long_instruments {
+sub get_longest_instrument {
     my $data = get_endpoint_result("$api_base/screener?expression=rsi(close,14)&timeframe=day");
-    return $data->[0][0];
+    return $data->[0];
 }
 
-sub get_short_instruments {
+sub get_shortest_instrument {
     my $data = get_endpoint_result("$api_base/screener?expression=rsi(close,14)&timeframe=day");
-    return $data->[scalar(@$data)-1][0];
+    return $data->[scalar(@$data)-1];
 }
 
 #### The functions in this block deal with determing position size
