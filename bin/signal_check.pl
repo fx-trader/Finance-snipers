@@ -10,15 +10,19 @@ use LWP::UserAgent;
 use JSON::MaybeXS;
 use Data::Dumper;
 use Redis;
+use Memoize;
+use Memoize::Expire;
 
-my $log_conf = q(
-log4perl rootLogger = DEBUG, SCREEN
-#log4perl rootLogger = DEBUG, LOG1, SCREEN
+my $log_level = uc($ENV{LOGLEVEL} // 'DEBUG');
+my $log_conf = qq(
+log4perl rootLogger = $log_level, SCREEN
+#log4perl rootLogger = $log_level, LOG1, SCREEN
 log4perl.appender.SCREEN         = Log::Log4perl::Appender::Screen
 log4perl.appender.SCREEN.stderr  = 0
 log4perl.appender.SCREEN.layout  = Log::Log4perl::Layout::PatternLayout
 log4perl.appender.SCREEN.layout.ConversionPattern =[%p] %d{ISO8601} %m %n
 );
+
 Log::Log4perl::init(\$log_conf);
 my $logger = Log::Log4perl->get_logger();
 
@@ -27,189 +31,232 @@ my $logger = Log::Log4perl->get_logger();
 my $api_base = "http://api.fxhistoricaldata.com";
 #my $api_base = "http://172.17.0.1:5001";
 
-#my $all_instruments = join(",", @{ get_all_instruments() });
-my $all_instruments = "AUDUSD,AUDJPY,AUDNZD,CHFJPY,EURCAD,EURCHF,EURGBP,EURJPY,EURUSD,GBPCHF,GBPJPY,GBPNZD,GBPUSD,NZDUSD,NZDJPY,USDCAD,USDCHF,USDHKD,USDJPY,XAUUSD,XAGUSD,AUS200,ESP35,FRA40,GER30,HKG33,JPN225,NAS100,SPX500,UK100,UKOil,US30,USOil,USDOLLAR,Bund";
-
-my ($long_instrument, $long_rsi_date, $long_rsi) = @{ get_longest_instrument() };
-my ($short_instrument, $short_rsi_date, $short_rsi) = @{ get_shortest_instrument() };
-
-my @signals = (
-    {   name => "LONG NOW",
-        args => {
-            expression  => "rsi(close,14) < " . ($long_rsi - 33),
-            timeframe => "15min",
-            start_period=> "15 minutes ago",
-            instruments => $long_instrument,
-            item_count  => 1,
-        },
-        signal_check_interval => 60,
-        trigger_minimum_interval => 3600,
-        description => "",
-    },
-    {   name => "SHORT NOW",
-        args => {
-            expression  => "rsi(close,14) > " . ($short_rsi + 33),
-            timeframe => "15min",
-            start_period=> "15 minutes ago",
-            instruments => $short_instrument,
-            item_count  => 1,
-        },
-        signal_check_interval => 60,
-        trigger_minimum_interval => 3600,
-        description => "",
-    },
-    {   name => "RSI extreme > 80",
-        args => {
-            expression  => "rsi(close,14) > 80",
-            timeframe => "15min",
-            start_period=> "2 hours ago",
-            instruments => $all_instruments,
-            item_count  => 1,
-        },
-        signal_check_interval => 60,
-        description => "Trend should continue for at least a couple of days, look for pullbacks.  See XAGUSD April 23, 2018.",
-    },
-    {   name => "RSI extreme < 20",
-        args => {
-            expression  => "rsi(close,14) < 20",
-            timeframe => "15min",
-            start_period=> "2 hours ago",
-            instruments => $all_instruments,
-            item_count  => 1,
-        },
-        signal_check_interval => 60,
-        description => "Trend should continue for at least a couple of days, look for pullbacks.  See XAGUSD April 23, 2018.",
-    },
-    {   name => "Weekly RSI extreme",
-        args => {
-            expression  => "rsi(close,14) < 22 or rsi(close,14) > 78",
-            timeframe => "week",
-            start_period=> "7 days ago",
-            instruments => $all_instruments,
-            item_count  => 1,
-        },
-        signal_check_interval => 86400,
-        description => "weekly extreme, stay on the trend on pullbacks, but look for a long term reversal in the next 6 to 12 months.  Look at USOil Jan 2015 for an example.",
-    },
-    {   name => "4hour RSI below 30 mad - SHORT NOW !",
-        enabled => 0,
-        args => {
-            expression  => "4hour(previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30) and 15minute(rsi(close,14) > 65)",
-            timeframe => "15min",
-            start_period=> "2 hour ago",
-            instruments => $all_instruments,
-            item_count  => 1,
-        },
-        signal_check_interval => 900,
-        description => "RSI gone mad",
-        stop_loss => {
-            expression => "max(high,2)",
-            timeframe => "day",
-        },
-    },
-    {   name => "4hour RSI above 70 mad - LONG NOW !",
-        enabled => 0,
-        args => {
-            expression  => "4hour(previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70) and 15minute(rsi(close,14) < 35)",
-            timeframe => "15min",
-            start_period=> "2 hour ago",
-            instruments => $all_instruments,
-            item_count  => 1,
-        },
-        signal_check_interval => 900,
-        description => "RSI gone mad",
-        stop_loss => {
-            expression => "min(low,2)",
-            timeframe => "day",
-        },
-    },
-    {   name => "day ATR double average",
-        args => {
-            #expression  => "day(open > close and tr()>2*atr(14)) and 15minute(rsi(close,14)>60)",
-            expression  => "tr()>2*atr(14)",
-            timeframe => "day",
-            start_period=> "4 hour ago",
-            instruments => $all_instruments,
-            item_count  => 1,
-        },
-        signal_check_interval => 7200,
-        description => "Range double the average",
-    },
-    {   name => "Breakout EURGBP",
-        args => {
-            expression  => "high > 0.9030 or low < 0.8695",
-            timeframe   => "4hour",
-            start_period=> "2 hours ago",
-            max_loaded_items => 10,
-            instruments => "EURGBP",
-        },
-        signal_check_interval => 7200,
-        description => "",
-    },
-    {   name => "Big Breakout NZDJPY",
-        args => {
-            expression  => "high > 83.35",
-            timeframe   => "4hour",
-            start_period=> "2 hours ago",
-            max_loaded_items => 10,
-            instruments => "NZDJPY",
-        },
-        signal_check_interval => 7200,
-        description => "",
-    },
-    {   name => "ENTER: Accumulate Long",
-        enabled => 0,
-        args => {
-            expression  => "15minute(rsi(close,14)<40) and 4hour(macddiff(close,12,26,9) < 0)",
-            timeframe   => "15min",
-            start_period=> "2 hours ago",
-            max_loaded_items => 10000,
-            instruments => "XAGUSD,XAUUSD,GBPUSD,AUDUSD",
-        },
-        signal_check_interval => 300,
-        description => "",
-    },
-    {   name => "ENTER: Accumulate Short",
-        enabled => 0,
-        args => {
-            expression  => "15minute(rsi(close,14)>60) and 4hour(macddiff(close,12,26,9) > 0)",
-            timeframe   => "15min",
-            start_period=> "2 hours ago",
-            max_loaded_items => 10000,
-            instruments => "USDJPY",
-        },
-        signal_check_interval => 300,
-        description => "",
-    },
-#    {   name => "CLOSE: Take Profit Long",
-#        args => {
-#            expression  => "15minute(rsi(close,14)>65) and 4hour(macddiff(close,12,26,9) < 0)",
-#            timeframe   => "15min",
-#            start_period=> "2 hours ago",
-#            max_loaded_items => 10000,
-#            instruments => "EURUSD,GBPJPY",
-#        },
-#        signal_check_interval => 300,
-#        description => "",
-#    },
-#    {   name => "CLOSE: Take Profit Long",
-#        args => {
-#            expression  => "15minute(rsi(close,14)<35) and 4hour(macddiff(close,12,26,9) > 0)",
-#            timeframe   => "15min",
-#            start_period=> "2 hours ago",
-#            max_loaded_items => 10000,
-#            instruments => "EURCAD",
-#        },
-#        signal_check_interval => 300,
-#        description => "",
-#    },
-
-
-);
-
 
 my $redis = Redis->new( server => 'signal-scan-redis:6379' );
+
+#memoize("get_descriptive_statistics");
+tie my %descriptive_stats_cache => 'Memoize::Expire', LIFETIME => 86400;
+memoize("get_descriptive_statistics", SCALAR_CACHE => [ HASH => \%descriptive_stats_cache ] );
+
+#tie my %all_instruments_cache => 'Memoize::Expire', LIFETIME => 604800;
+#memoize("get_all_instruments", SCALAR_CACHE => [ HASH => \%all_instruments_cache ] );
+
+tie my %screen_result_cache => 'Memoize::Expire', LIFETIME => 3600;
+memoize("get_screen_result", SCALAR_CACHE => [ HASH => \%screen_result_cache ] );
+
+
 while (1) {
+
+    #my $all_instruments = join(",", @{ get_all_instruments() });
+    my $all_instruments = "AUDUSD,AUDJPY,AUDNZD,CHFJPY,EURCAD,EURCHF,EURGBP,EURJPY,EURUSD,GBPCHF,GBPJPY,GBPNZD,GBPUSD,NZDUSD,NZDJPY,USDCAD,USDCHF,USDHKD,USDJPY,XAUUSD,XAGUSD,AUS200,ESP35,FRA40,GER30,HKG33,JPN225,NAS100,SPX500,UK100,UKOil,US30,USOil,USDOLLAR,Bund";
+
+    my ($long, $short) = get_screen_result();
+    my ($long_instrument, $long_rsi_date, $long_rsi) = @$long;
+    my ($short_instrument, $short_rsi_date, $short_rsi) = @$short;
+
+    my @signals = (
+        {   name => "LONG NOW",
+            args => {
+                expression  => "rsi(close,14) < " . ($long_rsi - 33),
+                timeframe => "15min",
+                start_period=> "15 minutes ago",
+                instruments => $long_instrument,
+                item_count  => 1,
+            },
+            signal_check_interval => 60,
+            trigger_minimum_interval => 3600,
+            description => "",
+        },
+        {   name => "SHORT NOW",
+            args => {
+                expression  => "rsi(close,14) > " . ($short_rsi + 33),
+                timeframe => "15min",
+                start_period=> "15 minutes ago",
+                instruments => $short_instrument,
+                item_count  => 1,
+            },
+            signal_check_interval => 60,
+            trigger_minimum_interval => 3600,
+            description => "",
+        },
+        {   name => "RSI extreme > 70",
+            args => {
+                expression  => "rsi(close,14) > 70",
+                timeframe => "15min",
+                start_period=> "2 hours ago",
+                instruments => "$long_instrument,$short_instrument",
+                item_count  => 1,
+            },
+            signal_check_interval => 60,
+            description => "",
+        },
+        {   name => "RSI extreme < 30",
+            args => {
+                expression  => "rsi(close,14) < 30",
+                timeframe => "15min",
+                start_period=> "2 hours ago",
+                instruments => "$long_instrument,$short_instrument",
+                item_count  => 1,
+            },
+            signal_check_interval => 60,
+            description => "",
+        },
+        {   name => "Weekly RSI extreme",
+            args => {
+                expression  => "rsi(close,14) < 22 or rsi(close,14) > 78",
+                timeframe => "week",
+                start_period=> "7 days ago",
+                instruments => $all_instruments,
+                item_count  => 1,
+            },
+            signal_check_interval => 86400,
+            description => "weekly extreme, stay on the trend on pullbacks, but look for a long term reversal in the next 6 to 12 months.  Look at USOil Jan 2015 for an example.",
+        },
+        {   name => "4hour RSI below 30 mad - SHORT NOW !",
+            enabled => 0,
+            args => {
+                expression  => "4hour(previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30) and 15minute(rsi(close,14) > 65)",
+                timeframe => "15min",
+                start_period=> "2 hour ago",
+                instruments => $all_instruments,
+                item_count  => 1,
+            },
+            signal_check_interval => 900,
+            description => "RSI gone mad",
+            stop_loss => {
+                expression => "max(high,2)",
+                timeframe => "day",
+            },
+        },
+        {   name => "4hour RSI above 70 mad - LONG NOW !",
+            enabled => 0,
+            args => {
+                expression  => "4hour(previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70) and 15minute(rsi(close,14) < 35)",
+                timeframe => "15min",
+                start_period=> "2 hour ago",
+                instruments => $all_instruments,
+                item_count  => 1,
+            },
+            signal_check_interval => 900,
+            description => "RSI gone mad",
+            stop_loss => {
+                expression => "min(low,2)",
+                timeframe => "day",
+            },
+        },
+        {   name => "day ATR double average",
+            args => {
+                #expression  => "day(open > close and tr()>2*atr(14)) and 15minute(rsi(close,14)>60)",
+                expression  => "tr()>2*atr(14)",
+                timeframe => "day",
+                start_period=> "4 hour ago",
+                instruments => $all_instruments,
+                item_count  => 1,
+            },
+            signal_check_interval => 7200,
+            description => "Range double the average",
+        },
+        {   name => "Breakout EURGBP",
+            args => {
+                expression  => "high > 0.9030 or low < 0.8695",
+                timeframe   => "4hour",
+                start_period=> "2 hours ago",
+                max_loaded_items => 10,
+                instruments => "EURGBP",
+            },
+            signal_check_interval => 7200,
+            description => "",
+        },
+        {   name => "Big Breakout NZDJPY",
+            args => {
+                expression  => "high > 83.35",
+                timeframe   => "4hour",
+                start_period=> "2 hours ago",
+                max_loaded_items => 10,
+                instruments => "NZDJPY",
+            },
+            signal_check_interval => 7200,
+            description => "",
+        },
+        {   name => "ENTER: Accumulate Long",
+            enabled => 0,
+            args => {
+                expression  => "15minute(rsi(close,14)<40) and 4hour(macddiff(close,12,26,9) < 0)",
+                timeframe   => "15min",
+                start_period=> "2 hours ago",
+                max_loaded_items => 10000,
+                instruments => "XAGUSD,XAUUSD,GBPUSD,AUDUSD",
+            },
+            signal_check_interval => 300,
+            description => "",
+        },
+        {   name => "ENTER: Accumulate Short",
+            enabled => 0,
+            args => {
+                expression  => "15minute(rsi(close,14)>60) and 4hour(macddiff(close,12,26,9) > 0)",
+                timeframe   => "15min",
+                start_period=> "2 hours ago",
+                max_loaded_items => 10000,
+                instruments => "USDJPY",
+            },
+            signal_check_interval => 300,
+            description => "",
+        },
+    #    {   name => "CLOSE: Take Profit Long",
+    #        args => {
+    #            expression  => "15minute(rsi(close,14)>65) and 4hour(macddiff(close,12,26,9) < 0)",
+    #            timeframe   => "15min",
+    #            start_period=> "2 hours ago",
+    #            max_loaded_items => 10000,
+    #            instruments => "EURUSD,GBPJPY",
+    #        },
+    #        signal_check_interval => 300,
+    #        description => "",
+    #    },
+    #    {   name => "CLOSE: Take Profit Long",
+    #        args => {
+    #            expression  => "15minute(rsi(close,14)<35) and 4hour(macddiff(close,12,26,9) > 0)",
+    #            timeframe   => "15min",
+    #            start_period=> "2 hours ago",
+    #            max_loaded_items => 10000,
+    #            instruments => "EURCAD",
+    #        },
+    #        signal_check_interval => 300,
+    #        description => "",
+    #    },
+
+
+    );
+
+    my %stats = get_descriptive_statistics($all_instruments);
+    foreach my $instrument (keys %stats) {
+        push @signals, {
+            name    => "RANGE $instrument LONG",
+            args    => {
+                expression  => "close > previous(close,1) + (previous(tr(),1) * $stats{$instrument}{percentiles}{90})",
+                timeframe   => "day",
+                start_period=> "24 hours ago",
+                max_loaded_items=> 10,
+                instruments => $instrument,
+            },
+            signal_check_interval   => 60,
+            trigger_minimum_interval => 3600,
+            description => "",
+        }, {
+            name    => "RANGE $instrument SHORT",
+            args    => {
+                expression  => "close < previous(close,1) - (previous(tr(),1) * $stats{$instrument}{percentiles}{90})",
+                timeframe   => "day",
+                start_period=> "24 hours ago",
+                max_loaded_items=> 10,
+                instruments => $instrument,
+            },
+            signal_check_interval   => 60,
+            trigger_minimum_interval => 3600,
+            description => "",
+        };
+    }
+
     foreach my $signal (@signals) {
         my $signal_name = $signal->{name};
         if (exists($signal->{enabled}) && !$signal->{enabled}) {
@@ -272,7 +319,7 @@ sub check_alert {
             }
             $logger->info("$signal_name: TRIGGER ALERT $email_message_body");
             zap( { subject => "FXAPI: $instrument - $signal_name", message => "$email_message_body\n\n$url" } );
-            $logger->debug("set lastSignalAlert $signal_name $instrument");
+            $logger->debug("$signal_name: set lastSignalAlert $instrument");
             $redis->hset( "lastSignalAlert", $signal_name.$instrument => time() );
         }
     }
@@ -300,7 +347,7 @@ sub _wants_alert {
     my $trigger_minimum_interval = $signal->{trigger_minimum_interval} || 14400;
     my $triggered_seconds_ago = time() - $lastSignalAlertTime;
 
-    $logger->debug("$signal_name $instrument: triggered $triggered_seconds_ago seconds ago, minimum_interval is $trigger_minimum_interval");
+    $logger->debug("$signal_name: $instrument triggered $triggered_seconds_ago seconds ago, minimum_interval is $trigger_minimum_interval");
     return ( $triggered_seconds_ago >= $trigger_minimum_interval );
 }
 
@@ -323,7 +370,7 @@ sub _wants_signal_check {
     }
 
 
-    my $signal_interval = $signal->{signal_check_interval} || $logger->logdie("No interval defined for signal $signal_name");
+    my $signal_interval = $signal->{signal_check_interval} || $logger->logdie("$signal_name: No interval defined");
     my $signal_check_in = $lastSignalCheckTime + $signal_interval - time();
 
     if ( $signal_check_in <= 0 ) {
@@ -340,14 +387,19 @@ sub get_all_instruments {
     return get_endpoint_result("$api_base/instruments");
 }
 
-sub get_longest_instrument {
-    my $data = get_endpoint_result("$api_base/screener?expression=rsi(close,14)&timeframe=day");
-    return $data->[0];
+sub get_descriptive_statistics {
+    $logger->debug("get_descriptive_statistics: retrieving updated statistics");
+    my $instruments = shift;
+    my $data = get_endpoint_result("$api_base/descriptivestatistics?expression=previous(tr()/previous(atr(14),1),1)&instruments=$instruments");
+
+    return %$data;
 }
 
-sub get_shortest_instrument {
+sub get_screen_result {
+    $logger->debug("get_screen_result: Refreshing symbols");
     my $data = get_endpoint_result("$api_base/screener?expression=rsi(close,14)&timeframe=day");
-    return $data->[scalar(@$data)-1];
+
+    return $data->[0], $data->[scalar(@$data)-1];
 }
 
 #### The functions in this block deal with determing position size
