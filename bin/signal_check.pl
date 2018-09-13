@@ -55,30 +55,32 @@ while (1) {
     my ($short_instrument, $short_rsi_date, $short_rsi) = @$short;
 
     my @signals = (
-        {   name => "LONG NOW",
-            args => {
-                expression  => "rsi(close,14) < " . ($long_rsi - 33),
-                timeframe => "15min",
-                start_period=> "15 minutes ago",
-                instruments => $long_instrument,
-                item_count  => 1,
-            },
-            signal_check_interval => 60,
-            trigger_minimum_interval => 3600,
-            description => "",
-        },
-        {   name => "SHORT NOW",
-            args => {
-                expression  => "rsi(close,14) > " . ($short_rsi + 33),
-                timeframe => "15min",
-                start_period=> "15 minutes ago",
-                instruments => $short_instrument,
-                item_count  => 1,
-            },
-            signal_check_interval => 60,
-            trigger_minimum_interval => 3600,
-            description => "",
-        },
+#        {   name => "LONG NOW",
+#            enabled => 0,
+#            args => {
+#                expression  => "rsi(close,14) < " . ($long_rsi - 33),
+#                timeframe => "15min",
+#                start_period=> "15 minutes ago",
+#                instruments => $long_instrument,
+#                item_count  => 1,
+#            },
+#            signal_check_interval => 60,
+#            trigger_minimum_interval => 3600,
+#            description => "",
+#        },
+#        {   name => "SHORT NOW",
+#            enabled => 0,
+#            args => {
+#                expression  => "rsi(close,14) > " . ($short_rsi + 33),
+#                timeframe => "15min",
+#                start_period=> "15 minutes ago",
+#                instruments => $short_instrument,
+#                item_count  => 1,
+#            },
+#            signal_check_interval => 60,
+#            trigger_minimum_interval => 3600,
+#            description => "",
+#        },
         {   name => "RSI extreme > 70",
             args => {
                 expression  => "rsi(close,14) > 70",
@@ -88,7 +90,7 @@ while (1) {
                 item_count  => 1,
             },
             signal_check_interval => 60,
-            description => "",
+            description => "First we choose the instrument with highest and lowest daily RSI. This signal triggers when the 15min RSI is above 70 on said instruments.",
         },
         {   name => "RSI extreme < 30",
             args => {
@@ -99,7 +101,7 @@ while (1) {
                 item_count  => 1,
             },
             signal_check_interval => 60,
-            description => "",
+            description => "First we choose the instrument with highest and lowest daily RSI. This signal triggers when the 15min RSI is below 70 on said instruments.",
         },
         {   name => "Weekly RSI extreme",
             args => {
@@ -113,7 +115,7 @@ while (1) {
             description => "weekly extreme, stay on the trend on pullbacks, but look for a long term reversal in the next 6 to 12 months.  Look at USOil Jan 2015 for an example.",
         },
         {   name => "4hour RSI below 30 mad - SHORT NOW !",
-            enabled => 0,
+            enabled => 1,
             args => {
                 expression  => "4hour(previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30) and 15minute(rsi(close,14) > 65)",
                 timeframe => "15min",
@@ -122,14 +124,14 @@ while (1) {
                 item_count  => 1,
             },
             signal_check_interval => 900,
-            description => "RSI gone mad",
+            description => "RSI on 4 hour timeframe is heavily below 30 and rsi on 15 min timeframe is above 65",
             stop_loss => {
                 expression => "max(high,2)",
                 timeframe => "day",
             },
         },
         {   name => "4hour RSI above 70 mad - LONG NOW !",
-            enabled => 0,
+            enabled => 1,
             args => {
                 expression  => "4hour(previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70) and 15minute(rsi(close,14) < 35)",
                 timeframe => "15min",
@@ -138,7 +140,7 @@ while (1) {
                 item_count  => 1,
             },
             signal_check_interval => 900,
-            description => "RSI gone mad",
+            description => "RSI on 4 hour timeframe is heavily above 70 and rsi on 15 min timeframe is below 35",
             stop_loss => {
                 expression => "min(low,2)",
                 timeframe => "day",
@@ -146,62 +148,39 @@ while (1) {
         },
         {   name => "day ATR double average",
             args => {
-                #expression  => "day(open > close and tr()>2*atr(14)) and 15minute(rsi(close,14)>60)",
-                expression  => "tr()>2*atr(14)",
+                expression  => "tr()>2*previous(atr(14),1)",
                 timeframe => "day",
                 start_period=> "4 hour ago",
                 instruments => $all_instruments,
                 item_count  => 1,
             },
             signal_check_interval => 7200,
-            description => "Range double the average",
+            description => "Daily range double the 14 day average",
         },
-        {   name => "Breakout EURGBP",
+        {   name => "INCOME: Accumulate Long",
+            enabled => 1,
             args => {
-                expression  => "high > 0.9030 or low < 0.8695",
-                timeframe   => "4hour",
-                start_period=> "2 hours ago",
-                max_loaded_items => 10,
-                instruments => "EURGBP",
-            },
-            signal_check_interval => 7200,
-            description => "",
-        },
-        {   name => "Big Breakout NZDJPY",
-            args => {
-                expression  => "high > 83.35",
-                timeframe   => "4hour",
-                start_period=> "2 hours ago",
-                max_loaded_items => 10,
-                instruments => "NZDJPY",
-            },
-            signal_check_interval => 7200,
-            description => "",
-        },
-        {   name => "ENTER: Accumulate Long",
-            enabled => 0,
-            args => {
-                expression  => "15minute(rsi(close,14)<40) and 4hour(macddiff(close,12,26,9) < 0)",
+                expression  => "15minute(rsi(close,14)<30) and 4hour(rsi(close,14) < 42)",
                 timeframe   => "15min",
                 start_period=> "2 hours ago",
                 max_loaded_items => 10000,
-                instruments => "XAGUSD,XAUUSD,GBPUSD,AUDUSD",
+                instruments => "USDCHF",
             },
             signal_check_interval => 300,
-            description => "",
+            description => "Build up long position in instrument with most favourable yield.",
         },
-        {   name => "ENTER: Accumulate Short",
-            enabled => 0,
-            args => {
-                expression  => "15minute(rsi(close,14)>60) and 4hour(macddiff(close,12,26,9) > 0)",
-                timeframe   => "15min",
-                start_period=> "2 hours ago",
-                max_loaded_items => 10000,
-                instruments => "USDJPY",
-            },
-            signal_check_interval => 300,
-            description => "",
-        },
+#        {   name => "INCOME: Accumulate Short",
+#            enabled => 0,
+#            args => {
+#                expression  => "15minute(rsi(close,14)>70) and 4hour(rsi(close,14) > 58)",
+#                timeframe   => "15min",
+#                start_period=> "2 hours ago",
+#                max_loaded_items => 10000,
+#                instruments => "USDJPY",
+#            },
+#            signal_check_interval => 300,
+#            description => "Build up short position in instrument with most favourable yield.",
+#        },
     #    {   name => "CLOSE: Take Profit Long",
     #        args => {
     #            expression  => "15minute(rsi(close,14)>65) and 4hour(macddiff(close,12,26,9) < 0)",
@@ -228,34 +207,34 @@ while (1) {
 
     );
 
-    my %stats = get_descriptive_statistics($all_instruments);
-    foreach my $instrument (keys %stats) {
-        push @signals, {
-            name    => "RANGE $instrument LONG",
-            args    => {
-                expression  => "close > previous(close,1) + (previous(tr(),1) * $stats{$instrument}{percentiles}{90})",
-                timeframe   => "day",
-                start_period=> "24 hours ago",
-                max_loaded_items=> 10,
-                instruments => $instrument,
-            },
-            signal_check_interval   => 60,
-            trigger_minimum_interval => 3600,
-            description => "",
-        }, {
-            name    => "RANGE $instrument SHORT",
-            args    => {
-                expression  => "close < previous(close,1) - (previous(tr(),1) * $stats{$instrument}{percentiles}{90})",
-                timeframe   => "day",
-                start_period=> "24 hours ago",
-                max_loaded_items=> 10,
-                instruments => $instrument,
-            },
-            signal_check_interval   => 60,
-            trigger_minimum_interval => 3600,
-            description => "",
-        };
-    }
+#    my %stats = get_descriptive_statistics($all_instruments);
+#    foreach my $instrument (keys %stats) {
+#        push @signals, {
+#            name    => "RANGE $instrument LONG",
+#            args    => {
+#                expression  => "close > previous(close,1) + (previous(tr(),1) * $stats{$instrument}{percentiles}{90})",
+#                timeframe   => "day",
+#                start_period=> "24 hours ago",
+#                max_loaded_items=> 10,
+#                instruments => $instrument,
+#            },
+#            signal_check_interval   => 60,
+#            trigger_minimum_interval => 3600,
+#            description => "",
+#        }, {
+#            name    => "RANGE $instrument SHORT",
+#            args    => {
+#                expression  => "close < previous(close,1) - (previous(tr(),1) * $stats{$instrument}{percentiles}{90})",
+#                timeframe   => "day",
+#                start_period=> "24 hours ago",
+#                max_loaded_items=> 10,
+#                instruments => $instrument,
+#            },
+#            signal_check_interval   => 60,
+#            trigger_minimum_interval => 3600,
+#            description => "",
+#        };
+#    }
 
     foreach my $signal (@signals) {
         my $signal_name = $signal->{name};

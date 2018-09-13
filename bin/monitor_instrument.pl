@@ -9,9 +9,13 @@ $|=1;
 
 use Finance::HostedTrader::DataProvider::Oanda;
 use Finance::TA;
+use DateTime;
+use DateTime::Format::RFC3339;
 
-my $instrument  = "USDCAD";
+my $instrument  = $ARGV[0] // "EURUSD";
 my $timeframe   = 900;
+
+my $datetime_formatter = DateTime::Format::RFC3339->new();
 
 my $oanda = Finance::HostedTrader::DataProvider::Oanda->new();
 my $data = $oanda->getHistoricalData($instrument, $timeframe, 200);
@@ -20,11 +24,12 @@ my $lastTimeStamp       = $data->{candles}[$#{ $data->{candles} }]{time};
 my $lastTimeStampBlock  = int($lastTimeStamp / $timeframe);
 my @dataset             = map { $_->{mid}{c} } @{ $data->{candles} };
 
-$oanda->streamPriceData($instrument, sub {
+my $http_response = $oanda->streamPriceData($instrument, sub {
         my $obj = shift;
 
         my $latest_price = $obj->{closeoutBid} + (($obj->{closeoutAsk} - $obj->{closeoutBid}) / 2);
-        my $thisTimeStampBlock = int($obj->{time} / $timeframe);
+        my $timestamp = $obj->{time};
+        my $thisTimeStampBlock = int($timestamp / $timeframe);
 
         if ($lastTimeStampBlock == $thisTimeStampBlock) {
             $dataset[$#dataset] = $latest_price;
@@ -34,6 +39,7 @@ $oanda->streamPriceData($instrument, sub {
             $lastTimeStampBlock = $thisTimeStampBlock;
         }
 
+        my $datetime = $datetime_formatter->format_datetime(DateTime->from_epoch(epoch => $timestamp));
         my @ret = TA_RSI(0, $#dataset, \@dataset, 14);
-        print $lastTimeStampBlock, "\t", $ret[2][$#{$ret[2]}], "\n";
+        print "$datetime\t$latest_price\t", sprintf("%.2f",$ret[2][$#{$ret[2]}]), "\n";
 });
