@@ -50,12 +50,15 @@ sub filter {
 
     my %results;
 
+    # Ignore instruments where we don't have enough data to calculate ema200
+    my @results = grep { defined($_->[2]) } @{ $data->{results} }; 
+
     my @sorted = sort {
         my $v1 = $a->[2] > 1 ? $a->[2] - 1 : 1 - $a->[2];
         my $v2 = $b->[2] > 1 ? $b->[2] - 1 : 1 - $b->[2];
 
         $v2 <=> $v1;
-    } @{ $data->{results} };
+    } @results;
 
 
     foreach my $item (@sorted[0..2]) {
