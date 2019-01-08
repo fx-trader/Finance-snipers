@@ -7,17 +7,17 @@ use strict;
 use warnings;
 $|=1;
 
-use Finance::HostedTrader::DataProvider::Oanda;
+use Finance::HostedTrader::Provider::Oanda;
 use Finance::TA;
 use DateTime;
 use DateTime::Format::RFC3339;
 
-my $instrument  = $ARGV[0] // "EURUSD";
+my $instrument  = $ARGV[0] // "EUR_USD";
 my $timeframe   = 900;
 
 my $datetime_formatter = DateTime::Format::RFC3339->new();
 
-my $oanda = Finance::HostedTrader::DataProvider::Oanda->new();
+my $oanda = Finance::HostedTrader::Provider::Oanda->new( datetime_format => "UNIX" );
 my $data = $oanda->getHistoricalData($instrument, $timeframe, 200);
 
 my $lastTimeStamp       = $data->{candles}[$#{ $data->{candles} }]{time};
