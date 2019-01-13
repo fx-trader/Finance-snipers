@@ -7,7 +7,7 @@ use strict;
 use warnings;
 $|=1;
 
-use Finance::HostedTrader::Provider::Oanda;
+use Finance::HostedTrader::Config;
 use Finance::TA;
 use DateTime;
 use DateTime::Format::RFC3339;
@@ -17,7 +17,10 @@ my $timeframe   = 900;
 
 my $datetime_formatter = DateTime::Format::RFC3339->new();
 
-my $oanda = Finance::HostedTrader::Provider::Oanda->new( datetime_format => "UNIX" );
+my $cfg = Finance::HostedTrader::Config->new();
+my $oanda = $cfg->provider('oanda');
+$oanda->datetime_format("UNIX");
+
 my $data = $oanda->getHistoricalData($instrument, $timeframe, 200);
 
 my $lastTimeStamp       = $data->{candles}[$#{ $data->{candles} }]{time};
