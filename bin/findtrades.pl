@@ -3,9 +3,6 @@
 use strict;
 use warnings;
 
-use Data::Dumper;
-
-
 
 my $emafilter = Filter::EMARatio->new();
 my $rsifilter = Filter::RSI->new();
@@ -49,20 +46,17 @@ sub filter {
     my $data = $fxapi->screen( expression => "close/ema(close,200)" );
 
     my %results;
-
-    # Ignore instruments where we don't have enough data to calculate ema200
-    my @results = grep { defined($_->[2]) } @{ $data->{results} }; 
-
     my @sorted = sort {
         my $v1 = $a->[2] > 1 ? $a->[2] - 1 : 1 - $a->[2];
         my $v2 = $b->[2] > 1 ? $b->[2] - 1 : 1 - $b->[2];
 
         $v2 <=> $v1;
-    } @results;
+    } @{ $data->{results} };
 
-
-    foreach my $item (@sorted[0..2]) {
-        push @{ $results{ $item->[2] > 1 ? 'long' : 'short' } }, $item;
+    if (@sorted) {
+        foreach my $item (@sorted[0..2]) {
+            push @{ $results{ $item->[2] > 1 ? 'long' : 'short' } }, $item;
+        }
     }
 
     return \%results;
@@ -86,7 +80,6 @@ sub filter {
     my $data = $fxapi->screen( expression => "rsi(close,14)" );
 
     my %results;
-
     my @sorted = sort {
         my $v1 = $a->[2] > 50 ? 100 - $a->[2] : $a->[2];
         my $v2 = $b->[2] > 50 ? 100 - $b->[2] : $b->[2];
@@ -123,8 +116,12 @@ sub screen {
     my $qq = URI::Query->new(\%args);
 
     my $url = "/screener?" . $qq->stringify;
-    return $self->fetch_url($url);
+    my $data = $self->fetch_url($url);
 
+    # Ignore instruments where we don't have enough data to calculate screen
+    my @filtered_results = grep { defined($_->[2]) } @{ $data->{results} };
+    $data->{results} = \@filtered_results;
+    return $data;
 }
 
 sub fetch_url {
