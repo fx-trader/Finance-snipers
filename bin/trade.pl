@@ -25,10 +25,8 @@ $oanda->datetime_format('UNIX' );
 
 my @instruments = $oanda->getInstruments();
 
-@instruments = qw/EUR_GBP EUR_USD USD_CHF/;
-
 MCE::Loop::init {
-    chunk_size => 2, max_workers => 2,
+    chunk_size => 50, max_workers => 2,
 };
 
 my %status = mce_loop {
@@ -37,6 +35,10 @@ my %status = mce_loop {
     foreach my $instrument (@{ $chunk_ref }) {
         print MCE->wid . " working on $instrument\n";
         my $data = $oanda->getHistoricalData($instrument, $timeframe, 200);
+        if (!$data->{candles}[$#{ $data->{candles} }]->{complete}) {
+            pop @{ $data->{candles} };
+        }
+
         my @dataset             = map { $_->{mid}{c} } @{ $data->{candles} };
 
         my $timestamp = $data->{candles}[$#{ $data->{candles} }]{time};
@@ -46,10 +48,12 @@ my %status = mce_loop {
         MCE->gather($instrument, [ $datetime, sprintf("%.2f",$ret[2][$#{$ret[2]}]) ]);
     }
 
-    #print $$ . "_" . Dumper($worker_tasks) . "\n";
 } @instruments;
 
-print Dumper(\%status);exit;
+my @sorted = sort { $status{$a}->[1] <=> $status{$b}->[1] } keys(%status);
+foreach (@sorted) {
+print "$_\t$status{$_}->[1]\n";
+}
 
 exit;
 
