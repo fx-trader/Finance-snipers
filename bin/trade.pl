@@ -29,30 +29,40 @@ MCE::Loop::init {
     chunk_size => 50, max_workers => 2,
 };
 
+sub rsi {
+    my ($oanda, $instrument, $timeframe, $period) = @_;
+
+    my $data = $oanda->getHistoricalData($instrument, $timeframe, $period + 140);
+    if (!$data->{candles}[$#{ $data->{candles} }]->{complete}) {
+            pop @{ $data->{candles} };
+    }
+    my @dataset = map { $_->{mid}{c} } @{ $data->{candles} };
+    my $timestamp = $data->{candles}[$#{ $data->{candles} }]{time};
+    my $datetime = $datetime_formatter->format_datetime(DateTime->from_epoch(epoch => $timestamp));
+    my @ret = TA_RSI(0, $#dataset, \@dataset, $period);
+
+    return ( $datetime, sprintf("%.2f",$ret[2][$#{$ret[2]}]) );
+}
+
 my %status = mce_loop {
     my ($mce, $chunk_ref, $chunk_id) = @_;
 
     foreach my $instrument (@{ $chunk_ref }) {
-        print MCE->wid . " working on $instrument\n";
-        my $data = $oanda->getHistoricalData($instrument, $timeframe, 200);
-        if (!$data->{candles}[$#{ $data->{candles} }]->{complete}) {
-            pop @{ $data->{candles} };
+        #print MCE->wid . " working on $instrument\n";
+        my ($datetime, $rsi_3hour) = rsi($oanda, $instrument, 10800, 14);
+        my ($datetime_day, $rsi_day) = rsi($oanda, $instrument, 604800, 14);
+
+        if ( $rsi_3hour >= 65 or $rsi_3hour <= 35) {
+            MCE->gather($instrument, [ $datetime, $rsi_3hour, $rsi_day]);
         }
-
-        my @dataset             = map { $_->{mid}{c} } @{ $data->{candles} };
-
-        my $timestamp = $data->{candles}[$#{ $data->{candles} }]{time};
-        my $datetime = $datetime_formatter->format_datetime(DateTime->from_epoch(epoch => $timestamp));
-        my @ret = TA_RSI(0, $#dataset, \@dataset, 14);
-
-        MCE->gather($instrument, [ $datetime, sprintf("%.2f",$ret[2][$#{$ret[2]}]) ]);
     }
 
 } @instruments;
 
-my @sorted = sort { $status{$a}->[1] <=> $status{$b}->[1] } keys(%status);
+my @sorted = sort { abs($status{$a}->[1] - 50) <=> abs($status{$b}->[1] - 50) } keys(%status);
 foreach (@sorted) {
-print "$_\t$status{$_}->[1]\n";
+#print "$_\t$status{$_}->[1]\n";
+print "$_\t", join("\t", @{ $status{$_} }), "\n";
 }
 
 exit;
