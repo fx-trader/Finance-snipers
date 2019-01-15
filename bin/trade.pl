@@ -50,10 +50,10 @@ my %status = mce_loop {
     foreach my $instrument (@{ $chunk_ref }) {
         #print MCE->wid . " working on $instrument\n";
         my ($datetime, $rsi_3hour) = rsi($oanda, $instrument, 10800, 14);
-        my ($datetime_day, $rsi_day) = rsi($oanda, $instrument, 604800, 14);
 
         if ( $rsi_3hour >= 65 or $rsi_3hour <= 35) {
-            MCE->gather($instrument, [ $datetime, $rsi_3hour, $rsi_day]);
+            my ($datetime_15min, $rsi_15min) = rsi($oanda, $instrument, 900, 14);
+            MCE->gather($instrument, [ $datetime, $rsi_3hour, $rsi_15min]);
         }
     }
 
