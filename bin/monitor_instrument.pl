@@ -44,5 +44,12 @@ my $http_response = $oanda->streamPriceData($instrument, sub {
 
         my $datetime = $datetime_formatter->format_datetime(DateTime->from_epoch(epoch => $timestamp));
         my @ret = TA_RSI(0, $#dataset, \@dataset, 14);
-        print "$datetime\t$latest_price\t", sprintf("%.2f",$ret[2][$#{$ret[2]}]), "\n";
+        my $rsi = $ret[2][$#{$ret[2]}];
+        print "$datetime\t$latest_price\t", sprintf("%.2f",$rsi), "\n";
+
+        if (  $rsi < 30 ) {
+            print "RSI < 30\n";
+        } elsif ( $rsi > 70 ) {
+            print "RSI > 70\n";
+        }
 });
