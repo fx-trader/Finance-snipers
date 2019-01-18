@@ -27,7 +27,7 @@ my $thisTimeStamp       = $data->{candles}[$#{ $data->{candles} }]{time};
 my $lastTimeStampBlock  = int($thisTimeStamp / $timeframe);
 my @dataset             = map { $_->{mid}{c} } @{ $data->{candles} };
 
-my $http_response = $oanda->streamPriceData($instrument, sub {
+my $http_response = $oanda->streamPriceData([$instrument], sub {
         my $obj = shift;
         my $print = 0;
 
