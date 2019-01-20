@@ -31,7 +31,7 @@ Log::Log4perl::init(\$log_conf);
 my $logger = Log::Log4perl->get_logger();
 
 
-my @timeframes   = qw/60 900/;
+my $targets = MCE::Queue->new( fast => 1 );
 
 my $datetime_formatter = DateTime::Format::RFC3339->new();
 
@@ -47,7 +47,7 @@ foreach my $instrument_name (@instrument_names) {
 
     $logger->info("FETCH HISTORICAL DATA");
 
-    foreach my $timeframe (@timeframes) {
+    foreach my $timeframe (qw/ 60 900/) {
         my $data = $oanda->getHistoricalData($instrument_name, $timeframe, 200);
         my $thisTimeStamp       = $data->{candles}[$#{ $data->{candles} }]{time};
         $instruments->{$instrument_name}{$timeframe}{lastTimeStampBlock}  = int($thisTimeStamp / $timeframe);
@@ -57,37 +57,63 @@ foreach my $instrument_name (@instrument_names) {
     Log::Log4perl::NDC->pop();
 }
 
-while (1) {
+my $mce = MCE->new(
 
-    $logger->info("START STREAM");
+   task_end => sub {
+      my ($mce, $task_id, $task_name) = @_;
+      MCE->say("done with task $task_name");
+      $targets->end() if $task_name eq 'calculate_indicators';
+   },
 
-    my $http_response = $oanda->streamPriceData(\@instrument_names, sub {
-        my $obj = shift;
+    user_tasks => [
+    {
+       max_workers => 1,
+       task_name => 'calculate_indicators',
+       user_func => sub {
+            my %skip;
+           while (1) {
 
-        my $instrument_name = $obj->{instrument};
-        Log::Log4perl::NDC->push($instrument_name);
+               $logger->info("START STREAM");
 
-        rsi($instruments->{$instrument_name}, $obj, 900);
-        my $rsi = $instruments->{$instrument_name}{900}{rsi};
+               my $http_response = $oanda->streamPriceData(\@instrument_names, sub {
+                   my $obj = shift;
 
-        if (1 || $rsi > 70 || $rsi < 30) {
-            my $datetime = $instruments->{$instrument_name}{900}{datetime};
-            my $thisPrice = $instruments->{$instrument_name}{900}{thisPrice};
-            $logger->info("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi), "\t", sprintf("%.2f", $instruments->{$instrument_name}{60}{rsi}));
-        }
+                   my $instrument_name = $obj->{instrument};
+                   Log::Log4perl::NDC->push($instrument_name);
 
-        Log::Log4perl::NDC->pop();
-    });
+                   calc($instruments->{$instrument_name}, $obj);
+                   my $rsi = $instruments->{$instrument_name}{900}{rsi};
 
-    $logger->info("EXIT STREAM\t" . $http_response->status_line . "\t" . $http_response->decoded_content);
-    sleep(1);
+                   if ($rsi > 70 || $rsi < 30) {
+                       $targets->enqueue( { direction => ($rsi > 70 ? 'L' : 'S'), instrument => $instrument_name } );
+                       $skip{$instrument_name} = 1; #TODO: When/How does skip go back to 0 ?
+                       my $datetime = $instruments->{$instrument_name}{900}{datetime};
+                       my $thisPrice = $instruments->{$instrument_name}{900}{thisPrice};
+                       $logger->info("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi), "\t", sprintf("%.2f", $instruments->{$instrument_name}{60}{rsi}));
+                   }
 
-}
+                   Log::Log4perl::NDC->pop();
+               });
 
-sub rsi {
+               $logger->info("EXIT STREAM\t" . $http_response->status_line . "\t" . $http_response->decoded_content);
+               sleep(1);
+           }
+       },
+    }, {
+        max_workers => 2,
+        task_name   => 'enter_positions',
+        user_func => sub {
+            my $target = $targets->dequeue;
+            print Dumper($target);exit;
+        },
+    }
+    ],
+
+)->run();
+
+sub calc {
     my $instrument_info = shift;
     my $latest_tick = shift;
-    my $timeframe = shift;
 
     my @timeframes = keys %{ $instrument_info };
 
