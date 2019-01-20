@@ -5,17 +5,33 @@
 
 use strict;
 use warnings;
-use MCE::Loop;
 $|=1;
 
 use Finance::HostedTrader::Config;
+
 use Finance::TA;
 use DateTime;
 use DateTime::Format::RFC3339;
 use Data::Dumper;
+use Log::Log4perl;
+use MCE;
+use MCE::Queue;
 
 
-my $timeframe   = 900;
+my $log_conf = q(
+log4perl rootLogger = INFO, SCREEN
+#log4perl rootLogger = INFO, LOG1, SCREEN
+log4perl.appender.SCREEN         = Log::Log4perl::Appender::Screen
+log4perl.appender.SCREEN.stderr  = 0
+log4perl.appender.SCREEN.layout  = Log::Log4perl::Layout::PatternLayout
+#log4perl.appender.SCREEN.layout.ConversionPattern = %m %n
+log4perl.appender.SCREEN.layout.ConversionPattern = %d{ISO8601} %x %m %n
+);
+Log::Log4perl::init(\$log_conf);
+my $logger = Log::Log4perl->get_logger();
+
+
+my @timeframes   = qw/60 900/;
 
 my $datetime_formatter = DateTime::Format::RFC3339->new();
 
@@ -23,69 +39,77 @@ my $cfg = Finance::HostedTrader::Config->new();
 my $oanda = $cfg->provider('oanda');
 $oanda->datetime_format('UNIX' );
 
-my $max_requests_per_second = 2;
+my @instrument_names = $oanda->getInstruments();
 
-my @usd_denominated = grep /(^USD_|_USD$)/, $oanda->getInstruments();
+my $instruments;
+foreach my $instrument_name (@instrument_names) {
+    Log::Log4perl::NDC->push($instrument_name);
 
-MCE::Loop::init {
-    chunk_size => 5, max_workers => scalar(@usd_denominated),
-};
+    $logger->info("FETCH HISTORICAL DATA");
 
-my %status = mce_loop {
-    my ($mce, $chunk_ref, $chunk_id) = @_;
-
-    my $instrument_names = join(',', @{$chunk_ref});
-    my $sleep_interval = ($chunk_id - 1) * 4;
-    sleep($sleep_interval);
-
-    my $instruments;
-    foreach my $instrument_name (@{$chunk_ref}) {
-        #print "[$instrument_name][$$][$chunk_id] Fetch\n";
-        $instruments->{$instrument_name}{data} = $oanda->getHistoricalData($instrument_name, $timeframe, 200);
-
-        my $data = $instruments->{$instrument_name}{data};
+    foreach my $timeframe (@timeframes) {
+        my $data = $oanda->getHistoricalData($instrument_name, $timeframe, 200);
         my $thisTimeStamp       = $data->{candles}[$#{ $data->{candles} }]{time};
-        $instruments->{$instrument_name}{lastTimeStampBlock}  = int($thisTimeStamp / $timeframe);
-        $instruments->{$instrument_name}{dataset}             = [ map { $_->{mid}{c} } @{ $data->{candles} } ];
+        $instruments->{$instrument_name}{$timeframe}{lastTimeStampBlock}  = int($thisTimeStamp / $timeframe);
+        $instruments->{$instrument_name}{$timeframe}{data} = [ map { $_->{mid}{c} } @{ $data->{candles} } ];
     }
 
-    while (1) {
+    Log::Log4perl::NDC->pop();
+}
 
-        print "[$instrument_names][$$][$chunk_id] - START STREAM\n";
+while (1) {
 
-        my $http_response = $oanda->streamPriceData($chunk_ref, sub {
-            my $obj = shift;
-            my $print = 0;
+    $logger->info("START STREAM");
 
-            my $instrument_name = $obj->{instrument};
+    my $http_response = $oanda->streamPriceData(\@instrument_names, sub {
+        my $obj = shift;
 
-            my $thisPrice = $obj->{closeoutBid} + (($obj->{closeoutAsk} - $obj->{closeoutBid}) / 2);
-            my $thisTimestamp = $obj->{time};
-            my $thisTimeStampBlock = int($thisTimestamp / $timeframe);
+        my $instrument_name = $obj->{instrument};
+        Log::Log4perl::NDC->push($instrument_name);
 
-            if ($instruments->{$instrument_name}{lastTimeStampBlock} == $thisTimeStampBlock) {
-                $instruments->{$instrument_name}{dataset}[ $#{ $instruments->{$instrument_name}{dataset}} ] = $thisPrice
-            } else {
-                $print = 1;
-                shift @{ $instruments->{$instrument_name}{dataset} };
-                push @{ $instruments->{$instrument_name}{dataset} }, $thisPrice;
-                $instruments->{$instrument_name}{lastTimeStampBlock} = $thisTimeStampBlock;
-            }
+        rsi($instruments->{$instrument_name}, $obj, 900);
+        my $rsi = $instruments->{$instrument_name}{900}{rsi};
 
-            my $datetime = $datetime_formatter->format_datetime(DateTime->from_epoch(epoch => $thisTimestamp));
-            my $datetime_this_block = $datetime_formatter->format_datetime(DateTime->from_epoch(epoch => $thisTimeStampBlock*$timeframe));
-            my @ret = TA_RSI(0, $#{ $instruments->{$instrument_name}{dataset} }, $instruments->{$instrument_name}{dataset}, 14);
-            my $rsi = $ret[2][$#{$ret[2]}];
+        if (1 || $rsi > 70 || $rsi < 30) {
+            my $datetime = $instruments->{$instrument_name}{900}{datetime};
+            my $thisPrice = $instruments->{$instrument_name}{900}{thisPrice};
+            $logger->info("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi), "\t", sprintf("%.2f", $instruments->{$instrument_name}{60}{rsi}));
+        }
 
-            $print = ( $print ||  $rsi < 28 || $rsi > 72 );
+        Log::Log4perl::NDC->pop();
+    });
 
-            print "[$instrument_name][$$][$chunk_id] $datetime\t$thisPrice\t", sprintf("%.2f",$rsi), "\n" if ($print);
+    $logger->info("EXIT STREAM\t" . $http_response->status_line . "\t" . $http_response->decoded_content);
+    sleep(1);
 
-        });
+}
 
-        print "[$instrument_names][$$][$chunk_id] EXIT STREAM\t" . $http_response->status_line . "\t" . $http_response->decoded_content . "\n";
-        sleep(3);
+sub rsi {
+    my $instrument_info = shift;
+    my $latest_tick = shift;
+    my $timeframe = shift;
 
+    my @timeframes = keys %{ $instrument_info };
+
+    foreach my $timeframe (@timeframes) {
+        my $thisPrice = $latest_tick->{closeoutBid} + (($latest_tick->{closeoutAsk} - $latest_tick->{closeoutBid}) / 2);
+        my $thisTimestamp = $latest_tick->{time};
+        my $thisTimeStampBlock = int($thisTimestamp / $timeframe);
+
+        if ($instrument_info->{$timeframe}{lastTimeStampBlock} == $thisTimeStampBlock) {
+            $instrument_info->{$timeframe}{data}[ $#{ $instrument_info->{$timeframe}{data}} ] = $thisPrice
+        } else {
+            shift @{ $instrument_info->{$timeframe}{data} };
+            push @{ $instrument_info->{$timeframe}{data} }, $thisPrice;
+            $instrument_info->{$timeframe}{lastTimeStampBlock} = $thisTimeStampBlock;
+        }
+
+        my $datetime = $datetime_formatter->format_datetime(DateTime->from_epoch(epoch => $thisTimestamp));
+        my $datetime_this_block = $datetime_formatter->format_datetime(DateTime->from_epoch(epoch => $thisTimeStampBlock*$timeframe));
+        my @ret = TA_RSI(0, $#{ $instrument_info->{$timeframe}{data} }, $instrument_info->{$timeframe}{data}, 14);
+        my $rsi = $ret[2][$#{$ret[2]}];
+        $instrument_info->{$timeframe}{rsi} = $rsi;
+        $instrument_info->{$timeframe}{thisPrice} = $thisPrice;
+        $instrument_info->{$timeframe}{datetime} = $datetime;
     }
-
-} @usd_denominated;
+}
