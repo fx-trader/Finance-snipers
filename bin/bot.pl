@@ -13,22 +13,20 @@ use Finance::TA;
 use DateTime;
 use DateTime::Format::RFC3339;
 use Data::Dumper;
-#use Log::Log4perl;
+use Log::Log4perl;
 use MCE;
 use MCE::Queue;
 
 
 my $log_conf = q(
 log4perl rootLogger = INFO, SCREEN
-#log4perl rootLogger = INFO, LOG1, SCREEN
 log4perl.appender.SCREEN         = Log::Log4perl::Appender::Screen
 log4perl.appender.SCREEN.stderr  = 0
 log4perl.appender.SCREEN.layout  = Log::Log4perl::Layout::PatternLayout
-#log4perl.appender.SCREEN.layout.ConversionPattern = %m %n
 log4perl.appender.SCREEN.layout.ConversionPattern = %d{ISO8601} %x %m %n
 );
-#Log::Log4perl::init(\$log_conf);
-#my $logger = Log::Log4perl->get_logger();
+Log::Log4perl::init(\$log_conf);
+my $logger = Log::Log4perl->get_logger();
 
 
 my $targets = MCE::Queue->new( fast => 1 );
@@ -43,10 +41,10 @@ my @instrument_names = grep /USD/, $oanda->getInstruments();
 
 my $instruments;
 foreach my $instrument_name (@instrument_names) {
-    #Log::Log4perl::NDC->push($instrument_name);
+    Log::Log4perl::NDC->push($instrument_name);
 
-    #$logger->info("FETCH HISTORICAL DATA");
-    print "FETCH HISTORICAL DATA $instrument_name\n";
+    $logger->info("FETCH HISTORICAL DATA");
+    #print "FETCH HISTORICAL DATA $instrument_name\n";
 
     foreach my $timeframe (qw/ 60 900/) {
         my $data = $oanda->getHistoricalData($instrument_name, $timeframe, 200);
@@ -55,7 +53,7 @@ foreach my $instrument_name (@instrument_names) {
         $instruments->{$instrument_name}{timeframes}{$timeframe}{data} = [ map { $_->{mid}{c} } @{ $data->{candles} } ];
     }
 
-    #Log::Log4perl::NDC->pop();
+    Log::Log4perl::NDC->pop();
 }
 
 my $mce = MCE->new(
@@ -75,34 +73,34 @@ my $mce = MCE->new(
             my %skip;
             while (1) {
 
-                MCE->say("START STREAM");
-                #$logger->info("START STREAM");
+                #MCE->say("START STREAM");
+                $logger->info("START STREAM");
 
                 my $http_response = $oanda->streamPriceData(\@instrument_names, sub {
                     my $obj = shift;
 
                     my $instrument_name = $obj->{instrument};
-                    #Log::Log4perl::NDC->push($instrument_name);
+                    Log::Log4perl::NDC->push($instrument_name);
 
                     calc($instruments->{$instrument_name}, $obj);
                     #print Dumper($instruments->{$instrument_name});
                     my $rsi = $instruments->{$instrument_name}{timeframes}{900}{rsi};
 
-                    if ($rsi > 70 || $rsi < 30) {
+                    if ($rsi > 75 || $rsi < 25) {
                         MCE->say("Adding $instrument_name to queue");
                         $targets->enqueue( { direction => ($rsi > 70 ? 'L' : 'S'), instrument => $instrument_name } );
                         $skip{$instrument_name} = 1; #TODO: When/How does skip go back to 0 ?
                         my $datetime = $instruments->{$instrument_name}{lastTickDateTime};
                         my $thisPrice = $instruments->{$instrument_name}{timeframes}{900}{data}[ $#{ $instruments->{$instrument_name}{timeframes}{900}{data} } ];
-                        #$logger->info("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi), "\t", sprintf("%.2f", $instruments->{$instrument_name}{timeframes}{60}{rsi}));
-                        MCE->say("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi), "\t", sprintf("%.2f", $instruments->{$instrument_name}{timeframes}{60}{rsi}));
+                        $logger->info("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi), "\t", sprintf("%.2f", $instruments->{$instrument_name}{timeframes}{60}{rsi}));
+                        #MCE->say("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi), "\t", sprintf("%.2f", $instruments->{$instrument_name}{timeframes}{60}{rsi}));
                     }
 
-                    #Log::Log4perl::NDC->pop();
+                    Log::Log4perl::NDC->pop();
                 });
 
-                #$logger->info("EXIT STREAM\t" . $http_response->status_line . "\t" . $http_response->decoded_content);
-                MCE->say("EXIT STREAM\t" . $http_response->status_line . "\t" . $http_response->decoded_content);
+                $logger->info("EXIT STREAM\t" . $http_response->status_line . "\t" . $http_response->decoded_content);
+                #MCE->say("EXIT STREAM\t" . $http_response->status_line . "\t" . $http_response->decoded_content);
                 sleep(1);
             }
         },
@@ -137,10 +135,18 @@ sub calc {
 
         if ($instrument_info->{timeframes}{$timeframe}{lastTimeStampBlock} == $thisTimeStampBlock) {
             $instrument_info->{timeframes}{$timeframe}{data}[ $#{ $instrument_info->{timeframes}{$timeframe}{data}} ] = $thisPrice
+        } elsif ($instrument_info->{timeframes}{$timeframe}{lastTimeStampBlock} < $thisTimeStampBlock) {
+            while ($instrument_info->{timeframes}{$timeframe}{lastTimeStampBlock} < $thisTimeStampBlock) {
+                shift @{ $instrument_info->{timeframes}{$timeframe}{data} };
+                if ($instrument_info->{timeframes}{$timeframe}{lastTimeStampBlock} == $thisTimeStampBlock - 1) {
+                    push @{ $instrument_info->{timeframes}{$timeframe}{data} }, $thisPrice;
+                } else {
+                    push @{ $instrument_info->{timeframes}{$timeframe}{data} }, $instrument_info->{timeframes}{$timeframe}{data}[ $#{ $instrument_info->{timeframes}{$timeframe}{data} } ];
+                }
+                $instrument_info->{timeframes}{$timeframe}{lastTimeStampBlock} += 1;
+            }
         } else {
-            shift @{ $instrument_info->{timeframes}{$timeframe}{data} };
-            push @{ $instrument_info->{timeframes}{$timeframe}{data} }, $thisPrice;
-            $instrument_info->{timeframes}{$timeframe}{lastTimeStampBlock} = $thisTimeStampBlock;
+            $logger->logconfess("Received tick from past timeframe candle");
         }
 
         my @ret = TA_RSI(0, $#{ $instrument_info->{timeframes}{$timeframe}{data} }, $instrument_info->{timeframes}{$timeframe}{data}, 14);
