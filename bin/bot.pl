@@ -21,6 +21,7 @@ use DateTime::Format::RFC3339;
 use Data::Dumper;
 use Log::Log4perl;
 use MCE;
+use MCE::Loop;
 use MCE::Queue;
 
 
@@ -29,7 +30,7 @@ log4perl rootLogger = INFO, SCREEN
 log4perl.appender.SCREEN         = Log::Log4perl::Appender::Screen
 log4perl.appender.SCREEN.stderr  = 0
 log4perl.appender.SCREEN.layout  = Log::Log4perl::Layout::PatternLayout
-log4perl.appender.SCREEN.layout.ConversionPattern = %d{ISO8601} %x %m %n
+log4perl.appender.SCREEN.layout.ConversionPattern = %d{ISO8601} [%P][%x] %m %n
 );
 Log::Log4perl::init(\$log_conf);
 my $logger = Log::Log4perl->get_logger();
@@ -44,31 +45,49 @@ my $oanda = $cfg->provider('oanda');
 $oanda->datetime_format('UNIX' );
 
 my @instrument_names = $oanda->getInstruments();
-#@instrument_names = grep /USD_/, $oanda->getInstruments();
+#@instrument_names = grep /AUD_/, $oanda->getInstruments();
 
-my $instruments;
-foreach my $instrument_name (@instrument_names) {
-    Log::Log4perl::NDC->push($instrument_name);
+my $max_workers = 8;
+MCE::Loop::init {
+    max_workers => $max_workers, chunk_size => int( (scalar(@instrument_names) / $max_workers)  + 0.5)
+};
 
-    $logger->info("FETCH HISTORICAL DATA");
-    #print "FETCH HISTORICAL DATA $instrument_name\n";
+$logger->info("Start");
 
-    foreach my $timeframe (qw/ 60 900/) {
-        my $data = $oanda->getHistoricalData($instrument_name, $timeframe, 200);
-        my $thisTimeStamp       = $data->{candles}[$#{ $data->{candles} }]{time};
-        $instruments->{$instrument_name}{timeframes}{$timeframe}{lastTimeStampBlock}  = int($thisTimeStamp / $timeframe);
-        $instruments->{$instrument_name}{timeframes}{$timeframe}{data} = [ map { $_->{mid}{c} } @{ $data->{candles} } ];
+my %instruments = mce_loop {
+    my ($mce, $chunk_ref, $chunk_id) = @_;
+
+    foreach my $instrument_name (@$chunk_ref) {
+        Log::Log4perl::NDC->push($instrument_name);
+
+        my $dataset;
+        $logger->info("fetch historical data begin");
+        foreach my $timeframe (qw/60 900/) {
+            my $data = $oanda->getHistoricalData($instrument_name, $timeframe, 200);
+            my $thisTimeStamp       = $data->{candles}[$#{ $data->{candles} }]{time};
+            $dataset->{timeframes}{$timeframe}{lastTimeStampCandle}  = int($thisTimeStamp / $timeframe);
+            $dataset->{timeframes}{$timeframe}{data} = [ map { $_->{mid}{c} } @{ $data->{candles} } ];
+        }
+        $logger->info("fetch historical data end");
+
+        Log::Log4perl::NDC->pop();
+
+        MCE->gather( $instrument_name => $dataset );
     }
 
-    Log::Log4perl::NDC->pop();
+} @instrument_names;
+
+if (scalar(keys %instruments) != scalar(@instrument_names)) {
+    $logger->logdie("Failed to download data for some instruments");
 }
+
+$logger->info("Done");
 
 my $mce = MCE->new(
 
    task_end => sub {
       my ($mce, $task_id, $task_name) = @_;
-      print "done with task $task_name\n";
-      MCE->say("done with task $task_name");
+      $logger->info("done with task $task_name");
       $targets->end() if $task_name eq 'calculate_indicators';
    },
 
@@ -77,10 +96,8 @@ my $mce = MCE->new(
         max_workers => 1,
         task_name => 'calculate_indicators',
         user_func => sub {
-            my %skip;
             while (1) {
 
-                #MCE->say("START STREAM");
                 $logger->info("START STREAM");
 
                 my $http_response = $oanda->streamPriceData(\@instrument_names, sub {
@@ -89,26 +106,24 @@ my $mce = MCE->new(
                     my $instrument_name = $obj->{instrument};
                     Log::Log4perl::NDC->push($instrument_name);
 
-                    calc($instruments->{$instrument_name}, $obj);
-                    #print Dumper($instruments->{$instrument_name});
-                    my $rsi = $instruments->{$instrument_name}{timeframes}{900}{rsi};
+                    my $instrument_info = $instruments{$instrument_name};
+                    my $tfs = $instrument_info->{timeframes};
+                    calc_indicators($instrument_info, $obj);
 
-                    if ($rsi > 75 || $rsi < 25) {
-                        MCE->say("Adding $instrument_name to queue");
-                        $targets->enqueue( { direction => ($rsi > 70 ? 'L' : 'S'), instrument => $instrument_name } );
-                        $skip{$instrument_name} = 1; #TODO: When/How does skip go back to 0 ?
-                        my $datetime = $instruments->{$instrument_name}{lastTickDateTime};
-                        my $thisPrice = $instruments->{$instrument_name}{timeframes}{900}{data}[ $#{ $instruments->{$instrument_name}{timeframes}{900}{data} } ];
-                        $logger->info("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi), "\t", sprintf("%.2f", $instruments->{$instrument_name}{timeframes}{60}{rsi}));
-                        #MCE->say("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi), "\t", sprintf("%.2f", $instruments->{$instrument_name}{timeframes}{60}{rsi}));
+                    my $rsi_15min = $tfs->{900}{rsi};
+
+                    if ($rsi_15min > 70 || $rsi_15min < 30) {
+                        $logger->info("Adding to queue");
+                        $targets->enqueue( { direction => ($rsi_15min > 70 ? 'L' : 'S'), instrument_name => $instrument_name } );
+                        my $datetime = $instrument_info->{lastTickDateTime};
+                        my $thisPrice = $tfs->{900}{data}[ $#{ $tfs->{900}{data} } ];
+                        $logger->info("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi_15min), "\t", sprintf("%.2f", $tfs->{60}{rsi}));
                     }
 
                     Log::Log4perl::NDC->pop();
-                    return 1;
                 });
 
                 $logger->info("EXIT STREAM\t" . $http_response->status_line . "\t" . $http_response->decoded_content);
-                #MCE->say("EXIT STREAM\t" . $http_response->status_line . "\t" . $http_response->decoded_content);
                 sleep(1);
             }
         },
@@ -117,8 +132,12 @@ my $mce = MCE->new(
         max_workers => 2,
         task_name   => 'enter_positions',
         user_func => sub {
+            ## This sub only has access to the data that was added to the $targets queue
+            ## It does not have access to an up 2 date copy of the global variable %instruments
             while (defined (my $target = $targets->dequeue)) {
-                MCE->say("Removed $target->{instrument} from queue");
+                Log::Log4perl::NDC->push($target->{instrument_name});
+                $logger->info("processed from queue");
+                Log::Log4perl::NDC->pop();
             }
         },
     }
@@ -126,7 +145,7 @@ my $mce = MCE->new(
 
 )->run();
 
-sub calc {
+sub calc_indicators {
     my $instrument_info = shift;
     my $latest_tick = shift;
 
@@ -138,27 +157,27 @@ sub calc {
     $instrument_info->{lastTickDateTime} = $datetime;
 
     foreach my $timeframe (@timeframes) {
-        my $thisTimeStampBlock = int($thisTimestamp / $timeframe);
-        #my $datetime_this_block = $datetime_formatter->format_datetime(DateTime->from_epoch(epoch => $thisTimeStampBlock*$timeframe));
+        my $thisTimeStampCandle = int($thisTimestamp / $timeframe);
+        my $tf = $instrument_info->{timeframes}{$timeframe};
 
-        if ($instrument_info->{timeframes}{$timeframe}{lastTimeStampBlock} == $thisTimeStampBlock) {
-            $instrument_info->{timeframes}{$timeframe}{data}[ $#{ $instrument_info->{timeframes}{$timeframe}{data}} ] = $thisPrice
-        } elsif ($instrument_info->{timeframes}{$timeframe}{lastTimeStampBlock} < $thisTimeStampBlock) {
-            while ($instrument_info->{timeframes}{$timeframe}{lastTimeStampBlock} < $thisTimeStampBlock) {
-                shift @{ $instrument_info->{timeframes}{$timeframe}{data} };
-                if ($instrument_info->{timeframes}{$timeframe}{lastTimeStampBlock} == $thisTimeStampBlock - 1) {
-                    push @{ $instrument_info->{timeframes}{$timeframe}{data} }, $thisPrice;
+        if ($tf->{lastTimeStampCandle} == $thisTimeStampCandle) {
+            $tf->{data}[ $#{ $tf->{data}} ] = $thisPrice;
+        } elsif ($tf->{lastTimeStampCandle} < $thisTimeStampCandle) {
+            while ($tf->{lastTimeStampCandle} < $thisTimeStampCandle) {
+                shift @{ $tf->{$timeframe}{data} };
+                if ($tf->{lastTimeStampCandle} == $thisTimeStampCandle - 1) {
+                    push @{ $tf->{data} }, $thisPrice;
                 } else {
-                    push @{ $instrument_info->{timeframes}{$timeframe}{data} }, $instrument_info->{timeframes}{$timeframe}{data}[ $#{ $instrument_info->{timeframes}{$timeframe}{data} } ];
+                    push @{ $tf->{data} }, $tf->{data}[ $#{ $tf->{data} } ];
                 }
-                $instrument_info->{timeframes}{$timeframe}{lastTimeStampBlock} += 1;
+                $tf->{lastTimeStampCandle} += 1;
             }
         } else {
             $logger->logconfess("Received tick from past timeframe candle");
         }
 
-        my @ret = TA_RSI(0, $#{ $instrument_info->{timeframes}{$timeframe}{data} }, $instrument_info->{timeframes}{$timeframe}{data}, 14);
+        my @ret = TA_RSI(0, $#{ $tf->{data} }, $tf->{data}, 14);
         my $rsi = $ret[2][$#{$ret[2]}];
-        $instrument_info->{timeframes}{$timeframe}{rsi} = $rsi;
+        $tf->{rsi} = $rsi;
     }
 }
