@@ -3,11 +3,17 @@
 # ABSTRACT: Demo oanda v20 api
 # PODNAME: bot.pl
 
+use v5.10;
 use strict;
 use warnings;
+
 $|=1;
 
 use Finance::HostedTrader::Config;
+
+use IO::Handle;
+use Net::HTTP;
+use Net::HTTPS;
 
 use Finance::TA;
 use DateTime;
@@ -37,7 +43,8 @@ my $cfg = Finance::HostedTrader::Config->new();
 my $oanda = $cfg->provider('oanda');
 $oanda->datetime_format('UNIX' );
 
-my @instrument_names = grep /USD/, $oanda->getInstruments();
+my @instrument_names = $oanda->getInstruments();
+#@instrument_names = grep /USD_/, $oanda->getInstruments();
 
 my $instruments;
 foreach my $instrument_name (@instrument_names) {
@@ -97,6 +104,7 @@ my $mce = MCE->new(
                     }
 
                     Log::Log4perl::NDC->pop();
+                    return 1;
                 });
 
                 $logger->info("EXIT STREAM\t" . $http_response->status_line . "\t" . $http_response->decoded_content);
@@ -110,7 +118,7 @@ my $mce = MCE->new(
         task_name   => 'enter_positions',
         user_func => sub {
             while (defined (my $target = $targets->dequeue)) {
-                #MCE->say(Dumper($target));
+                MCE->say("Removed $target->{instrument} from queue");
             }
         },
     }
