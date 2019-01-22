@@ -45,7 +45,7 @@ my $oanda = $cfg->provider('oanda');
 $oanda->datetime_format('UNIX' );
 
 my @instrument_names = $oanda->getInstruments();
-#@instrument_names = grep /AUD_/, $oanda->getInstruments();
+@instrument_names = grep /AUD_/, $oanda->getInstruments();
 
 my $max_workers = 8;
 MCE::Loop::init {
@@ -62,11 +62,28 @@ my %instruments = mce_loop {
 
         my $dataset;
         $logger->info("fetch historical data begin");
-        foreach my $timeframe (qw/60 900/) {
+        foreach my $timeframe (qw/60 900 86400/) {
             my $data = $oanda->getHistoricalData($instrument_name, $timeframe, 200);
             my $thisTimeStamp       = $data->{candles}[$#{ $data->{candles} }]{time};
             $dataset->{timeframes}{$timeframe}{lastTimeStampCandle}  = int($thisTimeStamp / $timeframe);
-            $dataset->{timeframes}{$timeframe}{data} = [ map { $_->{mid}{c} } @{ $data->{candles} } ];
+            $dataset->{timeframes}{$timeframe}{data}{open}  = [ map { $_->{mid}{o} } @{ $data->{candles} } ];
+            $dataset->{timeframes}{$timeframe}{data}{high}  = [ map { $_->{mid}{h} } @{ $data->{candles} } ];
+            $dataset->{timeframes}{$timeframe}{data}{low}   = [ map { $_->{mid}{l} } @{ $data->{candles} } ];
+            $dataset->{timeframes}{$timeframe}{data}{close} = [ map { $_->{mid}{c} } @{ $data->{candles} } ];
+
+            my $item_count = scalar( @{ $dataset->{timeframes}{$timeframe}{data}{close} });
+            if (scalar ( @{ $dataset->{timeframes}{$timeframe}{data}{open} } ) != $item_count ) {
+                $logger->die("[tf=$timeframe] Number of open datapoints differs to number of closing candles");
+            }
+
+            if (scalar ( @{ $dataset->{timeframes}{$timeframe}{data}{high} } ) != $item_count ) {
+                $logger->die("[tf=$timeframe] Number of high datapoints differs to number of closing candles");
+            }
+
+            if (scalar ( @{ $dataset->{timeframes}{$timeframe}{data}{low} } ) != $item_count ) {
+                $logger->die("[tf=$timeframe] Number of low datapoints differs to number of closing candles");
+            }
+
         }
         $logger->info("fetch historical data end");
 
@@ -112,12 +129,20 @@ my $mce = MCE->new(
 
                     my $rsi_15min = $tfs->{900}{rsi};
 
-                    if ($rsi_15min > 70 || $rsi_15min < 30) {
+                    if ($rsi_15min > 70) {
+                        $tfs->{900}{signals}{long}{last_rsi_trigger} = time();
+                    } elsif ($rsi_15min < 30) {
+                        $tfs->{900}{signals}{short}{last_rsi_trigger} = time();
+                    }
+
+                    if (1 || $rsi_15min > 70 || $rsi_15min < 30) {
+                        $tfs->{900}{signals}{long}{last_rsi_trigger} = time();
                         $logger->info("Adding to queue");
                         $targets->enqueue( { direction => ($rsi_15min > 70 ? 'L' : 'S'), instrument_name => $instrument_name } );
                         my $datetime = $instrument_info->{lastTickDateTime};
-                        my $thisPrice = $tfs->{900}{data}[ $#{ $tfs->{900}{data} } ];
-                        $logger->info("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi_15min), "\t", sprintf("%.2f", $tfs->{60}{rsi}));
+                        my $thisPrice = $tfs->{900}{data}{close}[ $#{ $tfs->{900}{data}{close} } ];
+#                        $logger->info("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi_15min), "\t", sprintf("%.2f", $tfs->{60}{rsi}));
+                        $logger->info("$datetime\t$thisPrice\t", sprintf("%.2f",$rsi_15min), "\t", sprintf("%.2f", $tfs->{60}{rsi}), "\t", sprintf("%.4f", $tfs->{86400}{atr}));
                     }
 
                     Log::Log4perl::NDC->pop();
@@ -161,14 +186,14 @@ sub calc_indicators {
         my $tf = $instrument_info->{timeframes}{$timeframe};
 
         if ($tf->{lastTimeStampCandle} == $thisTimeStampCandle) {
-            $tf->{data}[ $#{ $tf->{data}} ] = $thisPrice;
+            $tf->{data}{close}[ $#{ $tf->{data}{close}} ] = $thisPrice;
         } elsif ($tf->{lastTimeStampCandle} < $thisTimeStampCandle) {
             while ($tf->{lastTimeStampCandle} < $thisTimeStampCandle) {
-                shift @{ $tf->{$timeframe}{data} };
+                shift @{ $tf->{$timeframe}{data}{close} };
                 if ($tf->{lastTimeStampCandle} == $thisTimeStampCandle - 1) {
-                    push @{ $tf->{data} }, $thisPrice;
+                    push @{ $tf->{data}{close} }, $thisPrice;
                 } else {
-                    push @{ $tf->{data} }, $tf->{data}[ $#{ $tf->{data} } ];
+                    push @{ $tf->{data}{close} }, $tf->{data}{close}[ $#{ $tf->{data}{close} } ];
                 }
                 $tf->{lastTimeStampCandle} += 1;
             }
@@ -176,8 +201,13 @@ sub calc_indicators {
             $logger->logconfess("Received tick from past timeframe candle");
         }
 
-        my @ret = TA_RSI(0, $#{ $tf->{data} }, $tf->{data}, 14);
-        my $rsi = $ret[2][$#{$ret[2]}];
-        $tf->{rsi} = $rsi;
+        my @ret = TA_RSI(0, $#{ $tf->{data}{close} }, $tf->{data}{close}, 14);
+        $tf->{rsi} = $ret[2][$#{$ret[2]}];
+
+        @ret = TA_ATR(0, $#{ $tf->{data}{close} }, $tf->{data}{high}, $tf->{data}{low}, $tf->{data}{close}, 14);
+        if ($timeframe == 86400) {
+#            $logger->info(Dumper(\$ret[2]));
+        }
+        $tf->{atr} = $ret[2][$#{$ret[2]}];
     }
 }
