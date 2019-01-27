@@ -45,9 +45,9 @@ my $oanda = $cfg->provider('oanda');
 $oanda->datetime_format('UNIX' );
 
 my @instrument_names = $oanda->getInstruments();
-@instrument_names = grep /AUD_/, $oanda->getInstruments();
+#@instrument_names = grep /AUD_/, $oanda->getInstruments();
 
-my $max_workers = 8;
+my $max_workers = 2;
 MCE::Loop::init {
     max_workers => $max_workers, chunk_size => int( (scalar(@instrument_names) / $max_workers)  + 0.5)
 };
@@ -113,6 +113,9 @@ my $mce = MCE->new(
         max_workers => 1,
         task_name => 'calculate_indicators',
         user_func => sub {
+
+            my $rsi_up  = 80;
+            my $rsi_down= 20;
             while (1) {
 
                 $logger->info("START STREAM");
@@ -129,13 +132,13 @@ my $mce = MCE->new(
 
                     my $rsi_15min = $tfs->{900}{rsi};
 
-                    if ($rsi_15min > 70) {
+                    if ($rsi_15min > $rsi_up) {
                         $tfs->{900}{signals}{long}{last_rsi_trigger} = time();
-                    } elsif ($rsi_15min < 30) {
+                    } elsif ($rsi_15min < $rsi_down) {
                         $tfs->{900}{signals}{short}{last_rsi_trigger} = time();
                     }
 
-                    if (1 || $rsi_15min > 70 || $rsi_15min < 30) {
+                    if ($rsi_15min > $rsi_up || $rsi_15min < $rsi_down) {
                         $tfs->{900}{signals}{long}{last_rsi_trigger} = time();
                         $logger->info("Adding to queue");
                         $targets->enqueue( { direction => ($rsi_15min > 70 ? 'L' : 'S'), instrument_name => $instrument_name } );
@@ -187,12 +190,24 @@ sub calc_indicators {
 
         if ($tf->{lastTimeStampCandle} == $thisTimeStampCandle) {
             $tf->{data}{close}[ $#{ $tf->{data}{close}} ] = $thisPrice;
+            if ( $thisPrice > $tf->{data}{high}[ $#{ $tf->{data}{high}} ]) {
+                $tf->{data}{high}[ $#{ $tf->{data}{high}} ] = $thisPrice;
+            }
+            if ( $thisPrice < $tf->{data}{low}[ $#{ $tf->{data}{low}} ]) {
+                $tf->{data}{low}[ $#{ $tf->{data}{low}} ] = $thisPrice;
+            }
         } elsif ($tf->{lastTimeStampCandle} < $thisTimeStampCandle) {
             while ($tf->{lastTimeStampCandle} < $thisTimeStampCandle) {
                 shift @{ $tf->{$timeframe}{data}{close} };
                 if ($tf->{lastTimeStampCandle} == $thisTimeStampCandle - 1) {
+                    push @{ $tf->{data}{open} }, $thisPrice;
+                    push @{ $tf->{data}{high} }, $thisPrice;
+                    push @{ $tf->{data}{low} }, $thisPrice;
                     push @{ $tf->{data}{close} }, $thisPrice;
                 } else {
+                    push @{ $tf->{data}{open} }, $tf->{data}{close}[ $#{ $tf->{data}{close} } ];
+                    push @{ $tf->{data}{high} }, $tf->{data}{close}[ $#{ $tf->{data}{close} } ];
+                    push @{ $tf->{data}{low} }, $tf->{data}{close}[ $#{ $tf->{data}{close} } ];
                     push @{ $tf->{data}{close} }, $tf->{data}{close}[ $#{ $tf->{data}{close} } ];
                 }
                 $tf->{lastTimeStampCandle} += 1;
