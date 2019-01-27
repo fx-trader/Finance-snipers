@@ -94,11 +94,13 @@ while (1) {
     $logger->info("Set RSI trigger at $rsi_trigger");
     if ($direction eq 'long') {
         $multiplier = ($pivot_data->[2] - $ask ) / $pivot_data->[1];
+        $logger->info("Multiplier = (max14($pivot_data->[2]) - ask($ask)) / atr14($pivot_data->[1])");
         $logger->info("Multiplier = $multiplier");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
 #        $logger->info("Skip macd") and next if ($macd2_data->[1] >= 0);
     } else {
         $multiplier = ($bid - $pivot_data->[3]) / $pivot_data->[1];
+        $logger->info("Multiplier = (bid($bid) - min14($pivot_data->[3])) / atr14($pivot_data->[1])");
         $logger->info("Multiplier = $multiplier");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] <= $rsi_trigger);
 #        $logger->info("Skip macd") and next if ($macd2_data->[1] <= 0);
