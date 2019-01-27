@@ -39,7 +39,7 @@ $logger->logdie("DIRECTION has to be either 'long' or 'short'") unless ($directi
 
 
 {
-    my $initial_delay = int(rand(3));
+    my $initial_delay = int(rand(10));
     $logger->info("Initial random delay of $initial_delay seconds");
     sleep($initial_delay);
 }
@@ -93,14 +93,22 @@ while (1) {
     my $rsi_trigger = getRSITriggerValue($instrument, $direction);
     $logger->info("Set RSI trigger at $rsi_trigger");
     if ($direction eq 'long') {
-        $multiplier = ($pivot_data->[2] - $ask ) / $pivot_data->[1];
         $logger->info("Multiplier = (max14($pivot_data->[2]) - ask($ask)) / atr14($pivot_data->[1])");
+        if ($pivot_data->[2] > $ask) {
+            $multiplier = ($pivot_data->[2] - $ask ) / $pivot_data->[1];
+        } else {
+            $multiplier = 0;
+        }
         $logger->info("Multiplier = $multiplier");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] >= $rsi_trigger);
 #        $logger->info("Skip macd") and next if ($macd2_data->[1] >= 0);
     } else {
-        $multiplier = ($bid - $pivot_data->[3]) / $pivot_data->[1];
         $logger->info("Multiplier = (bid($bid) - min14($pivot_data->[3])) / atr14($pivot_data->[1])");
+        if ($bid > $pivot_data->[3]) {
+            $multiplier = ($bid - $pivot_data->[3]) / $pivot_data->[1];
+        } else {
+            $multiplier = 0;
+        }
         $logger->info("Multiplier = $multiplier");
         $logger->info("Skip rsi") and next if ($rsi_data->[1] <= $rsi_trigger);
 #        $logger->info("Skip macd") and next if ($macd2_data->[1] <= 0);
