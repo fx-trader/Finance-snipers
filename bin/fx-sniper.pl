@@ -124,7 +124,7 @@ while (1) {
     $logger->info("Add position to $instrument ($open_position_size)");
     $provider->openMarket($instrument, HOSTED_TRADER_2_FXCM_DIRECTION($direction), $open_position_size);
 
-    zap( { subject => "fx-sniper: openmarket", message => "$instrument\n$direction\nMULTIPLIER = $multiplier\nPOSITION SIZE = $open_position_size\nASK Price = $ask\nRSI ($rsi_data->[0]) = $rsi_data->[1]\n" } );
+    zap( { subject => "fx-sniper: openmarket - $instrument", message => "$instrument\n$direction\nMULTIPLIER = $multiplier\nPOSITION SIZE = $open_position_size\nASK Price = $ask\nRSI ($rsi_data->[0]) = $rsi_data->[1]\n" } );
 }
 
 $logger->info("Sniper disengaged");
