@@ -15,6 +15,7 @@ function load_sniper {
     docker run \
             --restart=always \
             --name ${SNIPER_ID} \
+            --link smtp:smtp \
             -h ${SNIPER_ID}.fxhistoricaldata.com \
             -v /root/fx/cfg:/etc/fxtrader \
             -v $SNIPER_DIR/bin:/root/snipers \
@@ -34,7 +35,7 @@ MAX_EXPOSURE=1000 \
 EXPOSURE_INCREMENT=100 DIRECTION=long \
 load_sniper
 
-INSTRUMENT=USD_CHF \
-MAX_EXPOSURE=500000 \
-EXPOSURE_INCREMENT=25000 DIRECTION=long \
+INSTRUMENT=EUR_NZD \
+MAX_EXPOSURE=50000 \
+EXPOSURE_INCREMENT=5000 DIRECTION=short \
 load_sniper
