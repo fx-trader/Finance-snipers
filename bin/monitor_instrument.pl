@@ -11,6 +11,7 @@ use Finance::HostedTrader::Config;
 use Finance::TA;
 use DateTime;
 use DateTime::Format::RFC3339;
+use Term::ANSIColor qw(BOLD RED GREY11 RESET);
 
 my $instrument  = $ARGV[0] // "EUR_USD";
 my $timeframe   = 900;
@@ -27,6 +28,7 @@ my $thisTimeStamp       = $data->{candles}[$#{ $data->{candles} }]{time};
 my $lastTimeStampBlock  = int($thisTimeStamp / $timeframe);
 my @dataset             = map { $_->{mid}{c} } @{ $data->{candles} };
 
+my $first = 1;
 my $http_response = $oanda->streamPriceData([$instrument], sub {
         my $obj = shift;
         my $print = 0;
@@ -49,8 +51,12 @@ my $http_response = $oanda->streamPriceData([$instrument], sub {
         my @ret = TA_RSI(0, $#dataset, \@dataset, 14);
         my $rsi = $ret[2][$#{$ret[2]}];
 
-        $print = ( $print ||  $rsi < 28 || $rsi > 72 );
+        $print = ( $first || $print ||  $rsi < 28 || $rsi > 72 );
+        $first = 0;
 
         #print "$datetime_this_block\t$datetime\t$thisPrice\t$rsi\n";
-        print "$datetime\t$thisPrice\t", sprintf("%.2f",$rsi), "\n" if ($print);
+        if ($print) {
+            my $dotIndex = index($thisPrice, ".") + 5;
+            print "$datetime\t",BOLD, RED, substr($thisPrice, 0, $dotIndex), GREY11, substr($thisPrice, $dotIndex), RESET,"\t", sprintf("%.2f",$rsi), "\n";
+        }
 });
