@@ -102,5 +102,5 @@ sub daily_atr_tr {
 
 
 
-    return sprintf("ATR Yesterday = %.2f\tTR TODAY = $tr ( $day_high - $day_low )\tRATIO=%.2f", $atr, $tr/$atr);
+    return sprintf("ATR Yesterday = %.2f\tTR TODAY = %.3f ( $day_high - $day_low )\tRATIO=%.2f", $atr, $tr, $tr/$atr);
 }
