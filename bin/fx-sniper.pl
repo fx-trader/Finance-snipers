@@ -122,7 +122,7 @@ while (1) {
 
     my $open_position_size = ($instrument_exposure + $adjusted_exposure_increment > $max_exposure ? $max_exposure - $instrument_exposure : $adjusted_exposure_increment );
     $logger->info("Add position to $instrument ($open_position_size)");
-    $provider->openMarket($instrument, HOSTED_TRADER_2_FXCM_DIRECTION($direction), $open_position_size);
+    $provider->openMarket($instrument, $open_position_size);
 
     zap( { subject => "fx-sniper: openmarket - $instrument $direction", message => "ASK Price = $ask\nMULTIPLIER = $multiplier\nPOSITION SIZE = $open_position_size\nRSI ($rsi_data->[0]) = $rsi_data->[1]\n" } );
 }
