@@ -20,7 +20,7 @@ log4perl.appender.SCREEN.layout.ConversionPattern = %d{ISO8601} %m %n
 Log::Log4perl::init(\$log_conf);
 my $logger = Log::Log4perl->get_logger();
 
-my $check_interval = 120;
+my $check_interval = 20;
 
 while (1) {
 
