@@ -14,7 +14,6 @@ log4perl rootLogger = INFO, SCREEN
 log4perl.appender.SCREEN         = Log::Log4perl::Appender::Screen
 log4perl.appender.SCREEN.stderr  = 0
 log4perl.appender.SCREEN.layout  = Log::Log4perl::Layout::PatternLayout
-#log4perl.appender.SCREEN.layout.ConversionPattern = %m %n
 log4perl.appender.SCREEN.layout.ConversionPattern = %d{ISO8601} %m %n
 );
 
@@ -37,8 +36,6 @@ while (1) {
 
         $logger->info("Instrument = $instrument");
         $logger->info("Quantity = $quantity");
-        $logger->info("Expression = $expression");
-        $logger->info("TimeFrame = $timeframe");
 
         my $last_signal = getSignalValue(%$sniper);
         if ($last_signal) {
