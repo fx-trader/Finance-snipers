@@ -42,7 +42,7 @@ while (1) {
             $logger->info("Sniper engage");
 
             use Finance::HostedTrader::Config;
-            my $provider = Finance::HostedTrader::Config->new()->provider('oanda_demo');
+            my $provider = Finance::HostedTrader::Config->new()->provider('oanda');
             DELETE_json("http://api.fxhistoricaldata.com/snipers/" . $sniper->{id});
             $provider->openMarket($sniper->{instrument}, $sniper->{quantity});
             zap( { subject => "fx-sniper: openmarket - $instrument $quantity", message => "" } );
