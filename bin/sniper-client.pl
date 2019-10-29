@@ -8,13 +8,14 @@ use Log::Log4perl;
 use JSON::MaybeXS;
 use Data::Dumper;
 
+my $log_level = $ENV{LOG_LEVEL} // 'INFO';
 # Initialize Logger
-my $log_conf = q(
-log4perl rootLogger = INFO, SCREEN
+my $log_conf = qq(
+log4perl rootLogger = $log_level, SCREEN
 log4perl.appender.SCREEN         = Log::Log4perl::Appender::Screen
 log4perl.appender.SCREEN.stderr  = 0
 log4perl.appender.SCREEN.layout  = Log::Log4perl::Layout::PatternLayout
-log4perl.appender.SCREEN.layout.ConversionPattern = %d{ISO8601} %m %n
+log4perl.appender.SCREEN.layout.ConversionPattern = \%d{ISO8601} \%m \%n
 );
 
 Log::Log4perl::init(\$log_conf);
@@ -24,7 +25,7 @@ my $check_interval = 20;
 
 while (1) {
 
-    $logger->info("Sleeping $check_interval seconds");
+    $logger->debug("Sleeping $check_interval seconds");
     sleep($check_interval);
     my $snipers = GET_json('http://api.fxhistoricaldata.com/snipers');
 
@@ -45,8 +46,12 @@ while (1) {
             my $provider = Finance::HostedTrader::Config->new()->provider('oanda');
             DELETE_json("http://api.fxhistoricaldata.com/snipers/" . $sniper->{id});
             $provider->openMarket($sniper->{instrument}, $sniper->{quantity});
-            zap( { subject => "fx-sniper: openmarket - $instrument $quantity", message => "" } );
 
+            # getIndicatorValue is also being called for the side effect of logging the indicator values at INFO level
+            # TODO: strictly speaking, the indicator being printed here ought to be a generic expression based on the sniper expression, not hardcoded to be rsi
+            #       perhaps this could be achieved by changing the signals API to optionally return indicator values for the expressions being evaluated
+            my ($datetime, $rsi, $close) = @{ getIndicatorValue($instrument, '15min', "rsi(close,14),close") };
+            zap( { subject => "fx-sniper: openmarket - $instrument $quantity", message => "DATETIME = $datetime\nRSI=$rsi\nCLOSE=$close" } );
         } else {
             $logger->info("Sniper wait");
         }
@@ -108,6 +113,30 @@ sub getSignalValue {
 
     return $data->[0] if (defined($data->[0]));
     return undef;
+}
+
+sub getIndicatorValue {
+    my $instrument = shift;
+    my $tf = shift;
+    my $indicator = shift;
+
+
+    use LWP::UserAgent;
+    use JSON::MaybeXS;
+
+    my $ua = LWP::UserAgent->new();
+    my $url = "http://api.fxhistoricaldata.com/indicators?instruments=$instrument&expression=$indicator&item_count=1&timeframe=$tf";
+
+    my $json_response = GET_json($url);
+
+    my $data = $json_response->{results}{$instrument}{data} || $logger->logconfess("json response for $url does not have expected structure\n" . Dumper($json_response));
+
+    $logger->logconfess("Failed to retrieve indicator '$indicator'") if (!$data || !$data->[0]);
+    foreach my $value (@{ $data->[0] }) {
+        $logger->info("$indicator ($tf) = $value");
+    }
+
+    return $data->[0];
 }
 
 sub zap {
