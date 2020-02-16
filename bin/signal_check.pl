@@ -376,7 +376,7 @@ sub get_descriptive_statistics {
 }
 
 sub get_screen_result {
-    $logger->debug("get_screen_result: Refreshing symbols");
+    $logger->debug("get_screen_result: Refreshing instruments");
     my $data = get_endpoint_result("$api_base/screener?expression=rsi(close,14)&timeframe=day");
 
     return $data->[0], $data->[scalar(@$data)-1];
@@ -387,15 +387,15 @@ sub getRatioCurrency {
     my ($instrument) = @_;
 
     use Finance::HostedTrader::Config;
-    my $symbols = Finance::HostedTrader::Config->new()->symbols();
-    my $symbolCurrency = $symbols->getSymbolDenominator($instrument);
+    my $instruments = Finance::HostedTrader::Config->new()->symbols();
+    my $instrumentCurrency = $instruments->getSymbolDenominator($instrument);
     my $accountCurrency = 'GBP'; #TODO, hardcoded to GBP
-    if ($symbolCurrency eq $accountCurrency) {
+    if ($instrumentCurrency eq $accountCurrency) {
         return;
     }
 
-    my $ratio_symbol = "${accountCurrency}${symbolCurrency}";
-    return $ratio_symbol;
+    my $ratio_instrument = "${accountCurrency}${instrumentCurrency}";
+    return $ratio_instrument;
 }
 
 sub calculatePositionSize {
@@ -411,9 +411,9 @@ use POSIX;
     my $positionSize;
     if ($ratioCurrency) {
         use Finance::HostedTrader::Config;
-        my $symbols = Finance::HostedTrader::Config->new()->symbols();
+        my $instruments = Finance::HostedTrader::Config->new()->symbols();
         my $ratio = get_endpoint_result_scalar("timeframe=5min&expression=close", $ratioCurrency);
-        $positionSize = POSIX::floor( $maxLoss * $ratio / ($current_price - $exit) ) / $symbols->getSymbolMeta2($instrument);
+        $positionSize = POSIX::floor( $maxLoss * $ratio / ($current_price - $exit) ) / $instruments->getSymbolMeta2($instrument);
     } else {
         $positionSize = POSIX::floor( $maxLoss / ($current_price - $exit) );
     }

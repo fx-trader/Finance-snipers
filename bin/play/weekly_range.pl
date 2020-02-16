@@ -1,6 +1,6 @@
 #!/usr/bin/perl
 
-# Prints all symbols sorted by how much they moved in the latest weekly period
+# Prints all instruments sorted by how much they moved in the latest weekly period
 
 use strict;
 use warnings;
@@ -11,7 +11,7 @@ use Data::Dumper;
 
 
 my $c       = Finance::HostedTrader::Config->new();
-my $symbols = $c->symbols->natural;
+my $instruments = $c->symbols->natural;
 my $dbh     = Finance::HostedTrader::Datasource->new()->dbh();
 
 my @inner_queries;
@@ -19,15 +19,15 @@ my $table_count = 0;
 my $all_tables  = '';
 my @all_fields;
 
-foreach my $symbol (@$symbols) {
+foreach my $instrument (@$instruments) {
     $table_count++;
-    $all_tables .= "T${table_count}.${symbol}";
+    $all_tables .= "T${table_count}.${instrument}";
     my $on_clause="";
     if ($table_count > 1) {
         $on_clause = "ON T1.datetime = T${table_count}.datetime";
     }
-    push @inner_queries, "(SELECT datetime, 100*(high-low)/low AS $symbol FROM ${symbol}_604800 ORDER BY datetime DESC LIMIT 100) AS T${table_count} $on_clause ";
-    push @all_fields, "T${table_count}.${symbol}";
+    push @inner_queries, "(SELECT datetime, 100*(high-low)/low AS $instrument FROM ${instrument}_604800 ORDER BY datetime DESC LIMIT 100) AS T${table_count} $on_clause ";
+    push @all_fields, "T${table_count}.${instrument}";
 }
 
 

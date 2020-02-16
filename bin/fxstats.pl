@@ -25,7 +25,6 @@ use Text::ASCIITable;
 
     my $instruments = join ",", map { $_->{instrument} } @work;
     print "No instruments to analyse\n" and exit unless($instruments);
-    my $symbol;
     my $url = "/descriptivestatistics?percentiles=85,90,95&expression=tr()/previous(atr(14),1)&instruments=$instruments";
     my $data = fetch_url($url);
 
