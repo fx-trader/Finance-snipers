@@ -89,7 +89,7 @@ while (1) {
     my $multiplier;
 #    my $macd2_data = getIndicatorValue($instrument, '4hour', "macddiff(close, 12, 26, 9)");
     my $pivot_data = getIndicatorValue($instrument, '4hour', "atr(14), max(close,14), min(close,14)");
-    my $rsi_data = getIndicatorValue($instrument, '15min', "rsi(close,14)");
+    my $rsi_data = getIndicatorValue($instrument, '15minute', "rsi(close,14)");
     my $rsi_trigger = getRSITriggerValue($instrument, $direction);
     $logger->info("Set RSI trigger at $rsi_trigger");
     if ($direction eq 'long') {
@@ -149,13 +149,13 @@ sub getRSITriggerValue {
     my ($instrument, $direction) = @_;
 
     if ($direction eq 'long') {
-        my $last_signal = getSignalValue($instrument, "15min", "rsi(close,14) < 30 and previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30");
+        my $last_signal = getSignalValue($instrument, "15minute", "rsi(close,14) < 30 and previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30");
         return 31 if (!$last_signal);
         my $seconds_ago = time() - convertToEpochWithStrptime($last_signal);
         $logger->info("rsi mad under 30 last seen $seconds_ago seconds ago");
         return ($seconds_ago < 12 * 60 * 60) ? 24 : 31; #12*60*60 = 12hours in seconds
     } elsif ($direction eq 'short') {
-        my $last_signal = getSignalValue($instrument, "15min", "rsi(close,14) > 70 and previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70");
+        my $last_signal = getSignalValue($instrument, "15minute", "rsi(close,14) > 70 and previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70");
         return 69 if (!$last_signal);
         my $seconds_ago = time() - convertToEpochWithStrptime($last_signal);
         $logger->info("rsi mad over 70 last seen $seconds_ago seconds ago");

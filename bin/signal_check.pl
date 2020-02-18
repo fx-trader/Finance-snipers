@@ -60,7 +60,7 @@ while (1) {
 #            enabled => 0,
 #            args => {
 #                expression  => "rsi(close,14) < " . ($long_rsi - 33),
-#                timeframe => "15min",
+#                timeframe => "15minute",
 #                start_period=> "15 minutes ago",
 #                instruments => $long_instrument,
 #                item_count  => 1,
@@ -73,7 +73,7 @@ while (1) {
 #            enabled => 0,
 #            args => {
 #                expression  => "rsi(close,14) > " . ($short_rsi + 33),
-#                timeframe => "15min",
+#                timeframe => "15minute",
 #                start_period=> "15 minutes ago",
 #                instruments => $short_instrument,
 #                item_count  => 1,
@@ -85,24 +85,24 @@ while (1) {
         {   name => "RSI extreme > 70",
             args => {
                 expression  => "rsi(close,14) > 70",
-                timeframe => "15min",
+                timeframe => "15minute",
                 start_period=> "2 hours ago",
                 instruments => "$long_instrument,$short_instrument",
                 item_count  => 1,
             },
             signal_check_interval => 60,
-            description => "First we choose the instrument with highest and lowest daily RSI. This signal triggers when the 15min RSI is above 70 on said instruments.",
+            description => "First we choose the instrument with highest and lowest daily RSI. This signal triggers when the 15minute RSI is above 70 on said instruments.",
         },
         {   name => "RSI extreme < 30",
             args => {
                 expression  => "rsi(close,14) < 30",
-                timeframe => "15min",
+                timeframe => "15minute",
                 start_period=> "2 hours ago",
                 instruments => "$long_instrument,$short_instrument",
                 item_count  => 1,
             },
             signal_check_interval => 60,
-            description => "First we choose the instrument with highest and lowest daily RSI. This signal triggers when the 15min RSI is below 70 on said instruments.",
+            description => "First we choose the instrument with highest and lowest daily RSI. This signal triggers when the 15minute RSI is below 70 on said instruments.",
         },
         {   name => "Weekly RSI extreme",
             args => {
@@ -119,7 +119,7 @@ while (1) {
             enabled => 1,
             args => {
                 expression  => "4hour(previous(rsi(close,14),1) < 30 and previous(rsi(close,14),2) < 30 and previous(rsi(close,14), 3) < 30) and 15minute(rsi(close,14) > 65)",
-                timeframe => "15min",
+                timeframe => "15minute",
                 start_period=> "2 hour ago",
                 instruments => $all_instruments,
                 item_count  => 1,
@@ -135,7 +135,7 @@ while (1) {
             enabled => 1,
             args => {
                 expression  => "4hour(previous(rsi(close,14),1) > 70 and previous(rsi(close,14),2) > 70 and previous(rsi(close,14), 3) > 70) and 15minute(rsi(close,14) < 35)",
-                timeframe => "15min",
+                timeframe => "15minute",
                 start_period=> "2 hour ago",
                 instruments => $all_instruments,
                 item_count  => 1,
@@ -162,7 +162,7 @@ while (1) {
             enabled => 1,
             args => {
                 expression  => "15minute(rsi(close,14)<30) and 4hour(rsi(close,14) < 42)",
-                timeframe   => "15min",
+                timeframe   => "15minute",
                 start_period=> "2 hours ago",
                 max_loaded_items => 10000,
                 instruments => "USDCHF",
@@ -174,7 +174,7 @@ while (1) {
 #            enabled => 0,
 #            args => {
 #                expression  => "15minute(rsi(close,14)>70) and 4hour(rsi(close,14) > 58)",
-#                timeframe   => "15min",
+#                timeframe   => "15minute",
 #                start_period=> "2 hours ago",
 #                max_loaded_items => 10000,
 #                instruments => "USDJPY",
@@ -185,7 +185,7 @@ while (1) {
     #    {   name => "CLOSE: Take Profit Long",
     #        args => {
     #            expression  => "15minute(rsi(close,14)>65) and 4hour(macddiff(close,12,26,9) < 0)",
-    #            timeframe   => "15min",
+    #            timeframe   => "15minute",
     #            start_period=> "2 hours ago",
     #            max_loaded_items => 10000,
     #            instruments => "EURUSD,GBPJPY",
@@ -196,7 +196,7 @@ while (1) {
     #    {   name => "CLOSE: Take Profit Long",
     #        args => {
     #            expression  => "15minute(rsi(close,14)<35) and 4hour(macddiff(close,12,26,9) > 0)",
-    #            timeframe   => "15min",
+    #            timeframe   => "15minute",
     #            start_period=> "2 hours ago",
     #            max_loaded_items => 10000,
     #            instruments => "EURCAD",

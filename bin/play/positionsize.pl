@@ -34,13 +34,13 @@ use POSIX;
 
     my $exit_expression = ( $direction eq 'long' ? 'min(low,2)' : 'max(high,2)' );
 
-    my $entry = get_endpoint_result_scalar("timeframe=5min&expression=close", $instrument);
+    my $entry = get_endpoint_result_scalar("timeframe=5minute&expression=close", $instrument);
     my $exit = get_endpoint_result_scalar("timeframe=day&expression=${exit_expression}", $instrument);
 
     my $ratioCurrency = getRatioCurrency($instrument);
     my $positionSize;
     if ($ratioCurrency) {
-        my $ratio = get_endpoint_result_scalar("timeframe=5min&expression=close", $ratioCurrency);
+        my $ratio = get_endpoint_result_scalar("timeframe=5minute&expression=close", $ratioCurrency);
         $positionSize = POSIX::floor( $maxLoss * $ratio / ($entry - $exit) ) / $instruments->getSymbolMeta2($instrument);
     } else {
         $positionSize = POSIX::floor( $maxLoss / ($entry - $exit) );

@@ -50,7 +50,7 @@ while (1) {
             # getIndicatorValue is also being called for the side effect of logging the indicator values at INFO level
             # TODO: strictly speaking, the indicator being printed here ought to be a generic expression based on the sniper expression, not hardcoded to be rsi
             #       perhaps this could be achieved by changing the signals API to optionally return indicator values for the expressions being evaluated
-            my ($datetime, $rsi, $close) = @{ getIndicatorValue($instrument, '15min', "rsi(close,14),close") };
+            my ($datetime, $rsi, $close) = @{ getIndicatorValue($instrument, '15minute', "rsi(close,14),close") };
             zap( { subject => "fx-sniper: openmarket - $instrument $quantity", message => "DATETIME = $datetime\nRSI=$rsi\nCLOSE=$close" } );
         } else {
             $logger->info("Sniper wait");
