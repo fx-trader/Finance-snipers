@@ -104,7 +104,7 @@ sub getSignalValue {
     my $tf = $args{timeframe} // $logger->logconfess("missing timeframe argument");
     my $signal = $args{expression} // $logger->logconfess("missing expressions argument");
 
-    my $url = "http://api.fxhistoricaldata.com/signals?instruments=$instrument&expression=$signal&item_count=1&timeframe=$tf&start_period=1 hour ago";
+    my $url = "http://api.fxhistoricaldata.com/signals?instruments=$instrument&expression=$signal&item_count=1&timeframe=$tf&start_period=10 minutes ago";
     my $json_response = GET_json($url);
     my $data = $json_response->{results}{$instrument}{data} || $logger->logconfess("json response for $url does not have expected structure\n" . Dumper($json_response));
 
