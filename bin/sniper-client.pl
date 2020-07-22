@@ -43,9 +43,9 @@ while (1) {
             $logger->info("Sniper engage");
 
             use Finance::HostedTrader::Config;
-            my $provider = Finance::HostedTrader::Config->new()->provider('oanda');
-            DELETE_json("http://api.fxhistoricaldata.com/snipers/" . $sniper->{id});
+            my $provider = Finance::HostedTrader::Config->new()->provider('oanda_demo');
             $provider->openMarket($sniper->{instrument}, $sniper->{quantity});
+            DELETE_json("http://api.fxhistoricaldata.com/snipers/" . $sniper->{id});
 
             # getIndicatorValue is also being called for the side effect of logging the indicator values at INFO level
             # TODO: strictly speaking, the indicator being printed here ought to be a generic expression based on the sniper expression, not hardcoded to be rsi
@@ -104,7 +104,7 @@ sub getSignalValue {
     my $tf = $args{timeframe} // $logger->logconfess("missing timeframe argument");
     my $signal = $args{expression} // $logger->logconfess("missing expressions argument");
 
-    my $url = "http://api.fxhistoricaldata.com/signals?instruments=$instrument&expression=$signal&item_count=1&timeframe=$tf&start_period=10 minutes ago";
+    my $url = "http://api.fxhistoricaldata.com/signals?instruments=$instrument&expression=$signal&item_count=1&timeframe=$tf&start_period=10 minutes ago&max_loaded_items=20000";
     my $json_response = GET_json($url);
     my $data = $json_response->{results}{$instrument}{data} || $logger->logconfess("json response for $url does not have expected structure\n" . Dumper($json_response));
 
