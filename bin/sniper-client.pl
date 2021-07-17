@@ -23,6 +23,8 @@ my $logger = Log::Log4perl->get_logger();
 
 my $check_interval = 20;
 
+checkOandaToken();
+
 while (1) {
 
     $logger->debug("Sleeping $check_interval seconds");
@@ -154,4 +156,9 @@ sub zap {
         body => $obj->{message}
     );
     sendmail($email);
+}
+
+sub checkOandaToken {
+    my $oanda = Finance::HostedTrader::Config->new()->provider('oanda_demo');
+    $oanda->getAccountSummary(); ## This is only being called to check that the authentication token is valid.  if it's not, the program dies early.
 }

@@ -1,12 +1,14 @@
 #!/usr/bin/perl
 
+=pod
+
 =head1 NAME
 
 fx-loop.pl
 
 =head1 SYNOPSIS
 
-    fx-loop.pl --instrument=EUR_USD --max_quantity=50000 [--loglevel=DEBUG]
+    fx-loop.pl --instrument=EUR_USD --max_quantity=50000 --increment=5000 [--loglevel=DEBUG]
 
 =head1 DESCRIPTION
 
@@ -72,6 +74,7 @@ my $logger = Log::Log4perl->get_logger();
 
 
 my $oanda = Finance::HostedTrader::Config->new()->provider('oanda_demo');
+$oanda->getAccountSummary(); ## This is only being called to check that the authentication token is valid.  if it's not, the program dies early.
 
 my $instrument  = $options->{instrument};
 my $timeframe   = 900;
